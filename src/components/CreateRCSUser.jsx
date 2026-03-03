@@ -57,7 +57,7 @@ function InputWithActionButton({ type = 'text', placeholder, registerProps, onAc
         className='h-14 px-5 rounded-2xl border border-[#C5CED8] bg-white text-[#344054] text-base font-semibold hover:bg-[#F8FAFC] hover:cursor-pointer transition-colors flex items-center justify-center gap-2'
       >
         <Upload className='w-4 h-4' />
-        Upload &amp; Crop
+        Upload
       </button>
     </div>
   );
@@ -341,7 +341,7 @@ function CreateRCSUser({ prefill, onSubmitFinal }) {
             onClick={(event) => event.stopPropagation()}
           >
             <div className='flex items-center justify-between mb-3'>
-              <h4 className='text-lg font-semibold text-[#111827] hover:cursor-pointer'>Upload &amp; Crop {activeUploadSpec.title}</h4>
+              <h4 className='text-lg font-semibold text-[#111827] hover:cursor-pointer'>Upload {activeUploadSpec.title}</h4>
               <button
                 type='button'
                 className='h-9 px-3 rounded-lg border border-[#C5CED8] text-sm font-semibold text-[#344054] hover:bg-white  transition-colors'

@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Check, ChevronLeft, EllipsisVertical, Globe, Mail, Phone } from 'lucide-react';
+import engatiLogo from '../../../assets/engatiLogo.png';
 
 import {
   getActionLabel,
@@ -51,8 +52,8 @@ function RcsPhonePreview({ form }) {
                     <img src={form.headerImageUrl} alt='Header' className='h-20 w-full object-cover' />
                   </div>
                 ) : (
-                  <div className='rounded-xl bg-[#F5EBF0] p-4 text-center text-[#B2466A] text-sm font-medium'>
-                    Engati Business Header
+                  <div className='rounded-xl overflow-hidden border border-[#E4E7EC] bg-[#F5EBF0] p-2'>
+                    <img src={engatiLogo} alt='Engati' className='h-20 w-full object-contain' />
                   </div>
                 )}
 
