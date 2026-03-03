@@ -4,12 +4,14 @@ import {
   cropImageDataUrl,
   getImageDimensions,
   readFileAsDataUrl,
+  uploadDataUrlToCdn,
   validateImageDimensions,
 } from '../helpers/imageUploadHelpers';
 
 function ImageUploadCropper({ spec, value, onChange, onDone }) {
   const [cropState, setCropState] = useState(null);
   const [error, setError] = useState('');
+  const [isUploading, setIsUploading] = useState(false);
 
   const previewStyle = useMemo(() => {
     if (!cropState) {
@@ -55,11 +57,12 @@ function ImageUploadCropper({ spec, value, onChange, onDone }) {
   };
 
   const applyCrop = async () => {
-    if (!cropState) {
+    if (!cropState || isUploading) {
       return;
     }
 
     try {
+      setIsUploading(true);
       const croppedDataUrl = await cropImageDataUrl({
         source: cropState.source,
         outputWidth: spec.outputWidth,
@@ -69,11 +72,16 @@ function ImageUploadCropper({ spec, value, onChange, onDone }) {
         offsetY: cropState.offsetY,
       });
 
-      onChange(croppedDataUrl);
+      const uploadedUrl = await uploadDataUrlToCdn(croppedDataUrl, {
+        fileName: `${spec.key || 'image'}-${Date.now()}.png`,
+      });
+      onChange(uploadedUrl);
       setCropState(null);
       onDone?.();
     } catch (cropError) {
       setError(cropError instanceof Error ? cropError.message : 'Unable to apply crop.');
+    } finally {
+      setIsUploading(false);
     }
   };
 
@@ -195,10 +203,11 @@ function ImageUploadCropper({ spec, value, onChange, onDone }) {
             </button>
             <button
               type='button'
+              disabled={isUploading}
               className='h-10 px-4 rounded-lg bg-[#BE244A] text-white text-sm font-semibold hover:bg-[#A91F42] transition-colors'
               onClick={applyCrop}
             >
-              Apply Crop
+              {isUploading ? 'Uploading...' : 'Apply Crop'}
             </button>
           </div>
         </div>

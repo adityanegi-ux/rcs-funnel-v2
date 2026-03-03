@@ -4,6 +4,8 @@ export const REQUIRED_FIELD_KEYS = [
   'callValue',
   'websiteValue',
   'emailValue',
+  'privacyPolicyUrl',
+  'termsOfServicesUrl',
 ];
 
 export const UPLOAD_SPECS = [
@@ -25,12 +27,7 @@ export const UPLOAD_SPECS = [
   },
 ];
 
-export const OPTION_TOGGLE_FIELDS = [
-  { key: 'notificationEnabled', label: 'Notification' },
-  { key: 'blockReportSpamEnabled', label: 'Block & report spam' },
-  { key: 'privacyPolicyEnabled', label: 'View Privacy Policy' },
-  { key: 'termsOfServicesEnabled', label: 'View Terms of Services' },
-];
+const DEFAULT_OPTION_LABELS = ['Notification', 'Block & report spam'];
 
 export function sanitizeValue(value) {
   return (value || '').trim();
@@ -55,10 +52,10 @@ export function createInitialRcsForm(prefill = {}) {
     infoSummary: '',
     supportHours: 'Mon-Fri, 9 AM - 6 PM',
     supportAddress: '',
-    notificationEnabled: false,
-    blockReportSpamEnabled: false,
-    privacyPolicyEnabled: false,
-    termsOfServicesEnabled: false,
+    notificationEnabled: true,
+    blockReportSpamEnabled: true,
+    privacyPolicyUrl: '',
+    termsOfServicesUrl: '',
   };
 }
 
@@ -79,5 +76,15 @@ export function getActionLabel(value, fallbackLabel) {
 }
 
 export function getEnabledOptions(form) {
-  return OPTION_TOGGLE_FIELDS.filter((option) => Boolean(form[option.key])).map((option) => option.label);
+  const enabledOptions = [...DEFAULT_OPTION_LABELS];
+
+  if (sanitizeValue(form.privacyPolicyUrl)) {
+    enabledOptions.push('View Privacy Policy');
+  }
+
+  if (sanitizeValue(form.termsOfServicesUrl)) {
+    enabledOptions.push('View Terms of Services');
+  }
+
+  return enabledOptions;
 }

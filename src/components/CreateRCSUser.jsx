@@ -5,7 +5,6 @@ import { Upload } from 'lucide-react';
 import ImageUploadCropper from './rcs/components/ImageUploadCropper';
 import RcsPhonePreview from './rcs/components/RcsPhonePreview';
 import {
-  OPTION_TOGGLE_FIELDS,
   UPLOAD_SPECS,
   createInitialRcsForm,
 } from './rcs/helpers/rcsFormHelpers';
@@ -130,14 +129,14 @@ function CreateRCSUser({ prefill, onSubmitFinal }) {
       <div className='grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_420px] gap-6 items-start'>
         <div className='space-y-4 xl:max-h-[calc(100vh-120px)] xl:overflow-y-auto xl:pr-2'>
           <SectionCard
-            title='Business Profile'
-            subtitle='Configure your business info and preview before final submission.'
+            title='Complete your RCS Business Profile (Unlock 60 days free)'
+            subtitle='These details appear in your RCS business card. Finish this step to claim 60-day free enablement. You can edit later.'
           >
             <div className='grid grid-cols-1 md:grid-cols-2 gap-4'>
               <div className='space-y-2'>
-                <FieldLabel required>Business Name</FieldLabel>
+                <FieldLabel required>Brand Name</FieldLabel>
                 <TextInput
-                  placeholder='Acme Foods'
+                  placeholder='Enter brand name'
                   registerProps={register('businessName', {
                     required: 'Business Name is required',
                     minLength: { value: 2, message: 'Use at least 2 characters' },
@@ -147,9 +146,9 @@ function CreateRCSUser({ prefill, onSubmitFinal }) {
                 <ValidationError message={errors.businessName?.message} />
               </div>
               <div className='space-y-2'>
-                <FieldLabel required>Short Description</FieldLabel>
+                <FieldLabel required>Brand Details</FieldLabel>
                 <TextInput
-                  placeholder='Fresh groceries delivered in 30 minutes.'
+                  placeholder='Enter a short description about your brand'
                   registerProps={register('shortDescription', {
                     required: 'Short Description is required',
                     minLength: { value: 5, message: 'Use at least 5 characters' },
@@ -163,7 +162,7 @@ function CreateRCSUser({ prefill, onSubmitFinal }) {
             <div className='space-y-2'>
               <FieldLabel>Logo URL (PNG)</FieldLabel>
               <InputWithActionButton
-                placeholder='https://cdn.yourdomain.com/assets/logo.png'
+                placeholder='https://cdn.engati.ai/assets/logo.png'
                 registerProps={register('logoUrl', {
                   pattern: {
                     value: /^https:\/\/.+\.png$/i,
@@ -181,7 +180,7 @@ function CreateRCSUser({ prefill, onSubmitFinal }) {
             <div className='space-y-2'>
               <FieldLabel>Header Image URL (PNG)</FieldLabel>
               <InputWithActionButton
-                placeholder='https://cdn.yourdomain.com/assets/header.png'
+                placeholder='https://cdn.engati.ai/assets/header.png'
                 registerProps={register('headerImageUrl', {
                   pattern: {
                     value: /^https:\/\/.+\.png$/i,
@@ -200,21 +199,11 @@ function CreateRCSUser({ prefill, onSubmitFinal }) {
           <SectionCard title='Contact Actions'>
             <div className='grid grid-cols-1 md:grid-cols-2 gap-4 items-start'>
               <div className='space-y-2'>
-                <FieldLabel>Call Label</FieldLabel>
-                <TextInput
-                  placeholder='Call'
-                  registerProps={register('callLabel', {
-                    maxLength: { value: 30, message: 'Keep it within 30 characters' },
-                  })}
-                />
-                <ValidationError message={errors.callLabel?.message} />
-              </div>
-              <div className='space-y-2'>
-                <FieldLabel required>Call Value</FieldLabel>
+                <FieldLabel required>Customer Support Phone Number</FieldLabel>
                 <TextInput
                   placeholder='919876543210'
                   registerProps={register('callValue', {
-                    required: 'Call Value is required',
+                    required: 'Customer Support Phone Number is required',
                     pattern: {
                       value: /^(\+91\d{10}|91\d{10}|0\d{10}|\d{10})$/,
                       message: 'Use 10 digits, 0+10, 91+10, or +91+10',
@@ -227,20 +216,10 @@ function CreateRCSUser({ prefill, onSubmitFinal }) {
 
             <div className='grid grid-cols-1 md:grid-cols-2 gap-4 items-start'>
               <div className='space-y-2'>
-                <FieldLabel>Website Label</FieldLabel>
-                <TextInput
-                  placeholder='Website'
-                  registerProps={register('websiteLabel', {
-                    maxLength: { value: 30, message: 'Keep it within 30 characters' },
-                  })}
-                />
-                <ValidationError message={errors.websiteLabel?.message} />
-              </div>
-              <div className='space-y-2'>
-                <FieldLabel required>Website Value</FieldLabel>
+                <FieldLabel required>Brand Website</FieldLabel>
                 <TextInput
                   type='url'
-                  placeholder='https://acme.com'
+                  placeholder='https://engati.ai'
                   registerProps={register('websiteValue', {
                     required: 'Website Value is required',
                     pattern: {
@@ -255,22 +234,12 @@ function CreateRCSUser({ prefill, onSubmitFinal }) {
 
             <div className='grid grid-cols-1 md:grid-cols-2 gap-4 items-start'>
               <div className='space-y-2'>
-                <FieldLabel>Email Label</FieldLabel>
-                <TextInput
-                  placeholder='Email'
-                  registerProps={register('emailLabel', {
-                    maxLength: { value: 30, message: 'Keep it within 30 characters' },
-                  })}
-                />
-                <ValidationError message={errors.emailLabel?.message} />
-              </div>
-              <div className='space-y-2'>
-                <FieldLabel required>Email Value</FieldLabel>
+                <FieldLabel required>Support email</FieldLabel>
                 <TextInput
                   type='email'
-                  placeholder='hello@acme.com'
+                  placeholder='support@engati.com'
                   registerProps={register('emailValue', {
-                    required: 'Email Value is required',
+                    required: 'Support email is required',
                     pattern: {
                       value: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
                       message: 'Use a valid email',
@@ -282,9 +251,9 @@ function CreateRCSUser({ prefill, onSubmitFinal }) {
             </div>
           </SectionCard>
 
-          <SectionCard title='Info Tab Content'>
+          <SectionCard title='Info tab (optional but recommended)'>
             <div className='space-y-2'>
-              <FieldLabel>Info Summary</FieldLabel>
+              <FieldLabel>About your business</FieldLabel>
               <textarea
                 placeholder='We help users order groceries and track delivery.'
                 {...register('infoSummary')}
@@ -309,21 +278,39 @@ function CreateRCSUser({ prefill, onSubmitFinal }) {
             </div>
           </SectionCard>
 
-          <SectionCard title='Options Tab Toggles'>
+          <SectionCard title=''>
             <div className='space-y-3'>
-              {OPTION_TOGGLE_FIELDS.map((option) => (
-                <label
-                  key={option.key}
-                  className='flex items-center justify-between rounded-2xl border border-[#C5CED8] bg-[#F9FAFB] px-4 py-3 cursor-pointer hover:bg-white transition-colors'
-                >
-                  <span className='text-base font-semibold text-[#344054]'>{option.label}</span>
-                  <input
-                    type='checkbox'
-                    {...register(option.key)}
-                    className='h-5 w-5 accent-[#BE244A]'
-                  />
-                </label>
-              ))}
+              <div className='space-y-2'>
+                <FieldLabel required>Privacy Policy URL</FieldLabel>
+                <TextInput
+                  type='url'
+                  placeholder='https://engati.ai/privacy-policy'
+                  registerProps={register('privacyPolicyUrl', {
+                    required: 'Privacy Policy URL is required',
+                    pattern: {
+                      value: /^https:\/\/.+/i,
+                      message: 'Use a valid https:// URL',
+                    },
+                  })}
+                />
+                <ValidationError message={errors.privacyPolicyUrl?.message} />
+              </div>
+
+              <div className='space-y-2'>
+                <FieldLabel required>Terms of Services URL</FieldLabel>
+                <TextInput
+                  type='url'
+                  placeholder='https://engati.ai/terms-of-services'
+                  registerProps={register('termsOfServicesUrl', {
+                    required: 'Terms of Services URL is required',
+                    pattern: {
+                      value: /^https:\/\/.+/i,
+                      message: 'Use a valid https:// URL',
+                    },
+                  })}
+                />
+                <ValidationError message={errors.termsOfServicesUrl?.message} />
+              </div>
             </div>
           </SectionCard>
 
@@ -334,7 +321,7 @@ function CreateRCSUser({ prefill, onSubmitFinal }) {
               disabled={isSubmittingFinal}
               className='h-12 w-full rounded-xl bg-[#BE244A] text-white text-base font-semibold hover:bg-[#A91F42] hover:cursor-pointer transition-colors disabled:opacity-60 disabled:cursor-not-allowed'
             >
-              {isSubmittingFinal ? 'Submitting...' : 'Submit Final Payload'}
+              {isSubmittingFinal ? 'Submitting...' : 'Submit & claim 60 days free'}
             </button>
           </div>
         </div>

@@ -131,7 +131,7 @@ function RcsPhonePreview({ form }) {
                       ))}
                     </div>
                   ) : (
-                    'No options enabled. Toggle options from the left form.'
+                    'Add privacy policy and terms links from the left form.'
                   )}
                 </div>
               </div>

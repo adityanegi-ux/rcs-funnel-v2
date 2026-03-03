@@ -71,3 +71,68 @@ export function cropImageDataUrl({
     image.src = source;
   });
 }
+
+function dataUrlToBlob(dataUrl) {
+  const [metaPart, dataPart] = String(dataUrl || '').split(',');
+  if (!metaPart || !dataPart) {
+    throw new Error('Invalid image data.');
+  }
+
+  const mimeMatch = metaPart.match(/data:(.*?);base64/);
+  const mimeType = mimeMatch?.[1] || 'image/png';
+  const binaryString = atob(dataPart);
+  const length = binaryString.length;
+  const bytes = new Uint8Array(length);
+
+  for (let index = 0; index < length; index += 1) {
+    bytes[index] = binaryString.charCodeAt(index);
+  }
+
+  return new Blob([bytes], { type: mimeType });
+}
+
+function extractUploadedUrl(responseBody) {
+  const candidates = [
+    responseBody?.url,
+    responseBody?.image_url,
+    responseBody?.responseObject?.url,
+    responseBody?.responseObject?.image_url,
+    responseBody?.data?.url,
+    responseBody?.data?.image_url,
+    responseBody?.result?.url,
+  ];
+
+  return candidates.find((value) => typeof value === 'string' && value.trim().length > 0) || '';
+}
+
+export async function uploadDataUrlToCdn(
+  dataUrl,
+  { fileName = 'image.png', fieldName = 'file' } = {}
+) {
+  const uploadUrl = String(import.meta.env.VITE_ENGATI_UPLOAD_URL || '').trim();
+  if (!uploadUrl) {
+    return dataUrl;
+  }
+
+  const imageBlob = dataUrlToBlob(dataUrl);
+  const formData = new FormData();
+  formData.append(fieldName, imageBlob, fileName);
+
+  const response = await fetch(uploadUrl, {
+    method: 'POST',
+    body: formData,
+  });
+
+  if (!response.ok) {
+    throw new Error(`CDN upload failed (${response.status}).`);
+  }
+
+  const responseBody = await response.json().catch(() => ({}));
+  const uploadedUrl = extractUploadedUrl(responseBody);
+
+  if (!uploadedUrl) {
+    throw new Error('CDN upload succeeded but no URL was returned.');
+  }
+
+  return uploadedUrl;
+}

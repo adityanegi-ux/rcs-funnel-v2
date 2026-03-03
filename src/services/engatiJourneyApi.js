@@ -74,6 +74,22 @@ function normalizeIndianMobileNo(inputValue) {
   return digits;
 }
 
+function resolveSupportHours(formValues = {}) {
+  const directSupportHours = String(formValues.supportHours || '').trim();
+  if (directSupportHours) {
+    return directSupportHours;
+  }
+
+  const supportStartTime = String(formValues.supportStartTime || '').trim();
+  const supportEndTime = String(formValues.supportEndTime || '').trim();
+
+  if (supportStartTime && supportEndTime) {
+    return `${supportStartTime} - ${supportEndTime}`;
+  }
+
+  return supportStartTime || supportEndTime || '';
+}
+
 async function postEngatiFlow(flowUrl, payload) {
   const response = await axios.post(flowUrl, payload, {
     headers: {
@@ -111,27 +127,37 @@ export async function capturePage2Journey({ fullName, email, phoneNumber }) {
 
 export async function capturePage3Journey({ formValues }) {
   const sessionId = getOrCreateLeadSessionId();
-  const normalizedCallValue = normalizeIndianMobileNo(formValues.callValue);
+  const normalizedCallValue = normalizeIndianMobileNo(formValues.callValue || formValues.phoneNumber);
   const payload = {
     ...buildCommonPayload('page_3', sessionId),
     p3_timestamp_utc: getUtcIsoTimestamp(),
-    business_name: formValues.businessName || '',
+    brand_name: formValues.brand_name || formValues.businessName || '',
     short_description: formValues.shortDescription || '',
     logo_url_png: formValues.logoUrl || '',
     header_image_url_png: formValues.headerImageUrl || '',
     call_label: formValues.callLabel || 'Call',
     call_value: normalizedCallValue,
     website_label: formValues.websiteLabel || 'Website',
-    website_value: formValues.websiteValue || '',
+    website_value: formValues.websiteValue || formValues.websiteUrl || '',
     email_label: formValues.emailLabel || 'Email',
-    email_value: formValues.emailValue || '',
+    email_value: formValues.emailValue || formValues.emailAddress || '',
     info_summary: formValues.infoSummary || '',
-    support_hours: formValues.supportHours || '',
+    support_hours: resolveSupportHours(formValues),
     support_address: formValues.supportAddress || '',
-    opt_notification: Boolean(formValues.notificationEnabled),
-    opt_block_report_spam: Boolean(formValues.blockReportSpamEnabled),
-    opt_view_privacy_policy: Boolean(formValues.privacyPolicyEnabled),
-    opt_view_terms_of_services: Boolean(formValues.termsOfServicesEnabled),
+    opt_notification: Boolean(formValues.notificationEnabled ?? formValues.opt_notification ?? true),
+    opt_block_report_spam: Boolean(
+      formValues.blockReportSpamEnabled ?? formValues.opt_block_report_spam ?? true
+    ),
+    opt_view_privacy_policy: Boolean(
+      String(formValues.privacyPolicyUrl || '').trim() ||
+        formValues.privacyPolicyEnabled ||
+        formValues.opt_view_privacy_policy
+    ),
+    opt_view_terms_of_services: Boolean(
+      String(formValues.termsOfServicesUrl || '').trim() ||
+        formValues.termsOfServicesEnabled ||
+        formValues.opt_view_terms_of_services
+    ),
   };
 
   return postEngatiFlow(ENGATI_PAGE_THREE_URL, payload);
