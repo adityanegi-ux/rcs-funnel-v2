@@ -1,15 +1,20 @@
 import { useMemo, useState } from 'react';
 import { Check, ChevronLeft, EllipsisVertical, Globe, Mail, Phone } from 'lucide-react';
 
-import { getActionLabel, getEnabledOptions, getSubmissionReadiness } from '../helpers/rcsFormHelpers';
+import {
+  formatTimeWithAmPm,
+  getActionLabel,
+  getEnabledOptions,
+  getSubmissionReadiness,
+} from '../helpers/rcsFormHelpers';
 
 function PreviewAction({ icon, label }) {
   const Icon = icon;
 
   return (
     <div className='text-center space-y-1'>
-      <Icon className='w-3.5 h-3.5 text-[#5F6368] mx-auto' />
-      <p className='text-[10px] font-semibold text-[#667085] truncate max-w-[82px] mx-auto'>{label}</p>
+      <Icon className='w-3 h-3 text-[#5F6368] mx-auto' />
+      <p className='text-[9px] text-[#667085] truncate max-w-[82px] mx-auto'>{label}</p>
     </div>
   );
 }
@@ -83,7 +88,7 @@ function RcsPhonePreview({ form }) {
                   <button
                     type='button'
                     onClick={() => setActiveTab('info')}
-                    className={`py-1.5 text-base font-semibold ${
+                    className={`py-1.5 text-base hover:cursor-pointer font-semibold ${
                       activeTab === 'info' ? 'text-[#0F172A] border-b-2 border-[#0F172A]' : 'text-[#475467]'
                     }`}
                   >
@@ -92,7 +97,7 @@ function RcsPhonePreview({ form }) {
                   <button
                     type='button'
                     onClick={() => setActiveTab('options')}
-                    className={`py-1.5 text-base font-semibold ${
+                    className={`py-1.5 text-base hover:cursor-pointer font-semibold ${
                       activeTab === 'options' ? 'text-[#0F172A] border-b-2 border-[#0F172A]' : 'text-[#475467]'
                     }`}
                   >
@@ -103,17 +108,17 @@ function RcsPhonePreview({ form }) {
                 <div className='py-2 text-sm text-[#334155] border-b border-[#E2E8F0]'>
                   {activeTab === 'info' ? (
                     <div className='space-y-2'>
-                      <p className='text-sm text-[#334155] leading-relaxed'>
+                      <p className='text-xs text-[#334155] leading-relaxed'>
                         {form.infoSummary?.trim() || 'No info summary added yet.'}
                       </p>
                       <div className='h-px bg-[#E2E8F0]' />
-                      <p className='text-sm text-[#334155]'>
-                        Support hours: {form.supportStartTime || '--:--'} - {form.supportEndTime || '--:--'}
+                      <p className='text-xs text-[#334155]'>
+                        Support hours: {formatTimeWithAmPm(form.supportStartTime)} - {formatTimeWithAmPm(form.supportEndTime)}
                       </p>
                       {form.supportAddress?.trim() ? (
                         <>
                           <div className='h-px bg-[#E2E8F0]' />
-                          <p className='text-sm text-[#334155] leading-relaxed'>{form.supportAddress}</p>
+                          <p className='text-xs text-[#334155] leading-relaxed'>{form.supportAddress}</p>
                         </>
                       ) : null}
                     </div>
@@ -121,7 +126,7 @@ function RcsPhonePreview({ form }) {
                     <div className='space-y-2'>
                       {enabledOptions.map((option, index) => (
                         <div key={option}>
-                          <p className='text-sm text-[#334155]'>{option}</p>
+                          <p className='text-xs text-[#334155]'>{option}</p>
                           {index < enabledOptions.length - 1 ? <div className='h-px bg-[#E2E8F0] mt-2' /> : null}
                         </div>
                       ))}

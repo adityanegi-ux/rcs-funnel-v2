@@ -36,15 +36,6 @@ export function sanitizeValue(value) {
   return (value || '').trim();
 }
 
-function slugifyBrand(brandName) {
-  return sanitizeValue(brandName).toLowerCase().replace(/[^a-z0-9]+/g, '');
-}
-
-export function defaultWebsiteUrl(brandName) {
-  const slug = slugifyBrand(brandName);
-  return slug ? `https://${slug}.com` : '';
-}
-
 export function createInitialRcsForm(prefill = {}) {
   const businessName = sanitizeValue(prefill.brandName);
   const emailAddress = sanitizeValue(prefill.email);
@@ -52,11 +43,11 @@ export function createInitialRcsForm(prefill = {}) {
 
   return {
     businessName,
-    shortDescription: businessName ? `${businessName} short description` : '',
+    shortDescription: '',
     logoUrl: '',
     headerImageUrl: '',
     phoneNumber,
-    websiteUrl: defaultWebsiteUrl(businessName),
+    websiteUrl: '',
     emailAddress,
     infoSummary: '',
     supportStartTime: '09:00',
@@ -87,4 +78,28 @@ export function getActionLabel(value, fallbackLabel) {
 
 export function getEnabledOptions(form) {
   return OPTION_TOGGLE_FIELDS.filter((option) => Boolean(form[option.key])).map((option) => option.label);
+}
+
+export function formatTimeWithAmPm(timeValue) {
+  if (!timeValue) {
+    return '--:--';
+  }
+
+  const normalized = String(timeValue).trim();
+
+  if (/am|pm/i.test(normalized)) {
+    return normalized.toUpperCase();
+  }
+
+  const [hourPart, minutePart = '00'] = normalized.split(':');
+  const hours24 = Number(hourPart);
+
+  if (Number.isNaN(hours24)) {
+    return normalized;
+  }
+
+  const period = hours24 >= 12 ? 'PM' : 'AM';
+  const hours12 = hours24 % 12 || 12;
+
+  return `${String(hours12).padStart(2, '0')}:${minutePart} ${period}`;
 }

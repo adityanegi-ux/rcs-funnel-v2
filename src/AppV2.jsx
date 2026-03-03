@@ -1,3 +1,4 @@
+/* eslint-disable no-unused-vars */
 import React, { useState, useEffect, useRef, useLayoutEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -8,19 +9,28 @@ import {
 import axios from 'axios';
 import CreateRCSUser from './components/CreateRCSUser';
 import debounce from './utils/lodashDebounce';
+import {
+    capturePage1Journey,
+    capturePage2Journey,
+    capturePage3Journey
+} from './services/engatiJourneyApi';
 
 // --- LIVE DATA ENGINE ---
 
+const INITIAL_BRAND_DATA = {
+    logo: null,
+    description: null,
+    industry: 'General',
+    sitelinks: [],
+    offer: 'Get 20% off your first query',
+    isLoading: false,
+    isLoaded: false
+};
+
 const useBrandData = (companyName) => {
-    const [data, setData] = useState({
-        logo: null,
-        description: null,
-        industry: 'General',
-        sitelinks: [],
-        offer: 'Get 20% off your first query',
-        isLoading: false,
-        isLoaded: false
-    });
+    const [data, setData] = useState(INITIAL_BRAND_DATA);
+    const normalizedCompanyName = companyName.trim();
+    const hasSearchableCompanyName = normalizedCompanyName.length >= 2;
 
     const getSitelinks = (industry) => {
         switch (industry) {
@@ -58,17 +68,16 @@ const useBrandData = (companyName) => {
     };
 
     useEffect(() => {
-        if (!companyName || companyName.trim().length < 2) {
-            setData(prev => ({ ...prev, isLoading: false, isLoaded: false }));
+        if (!hasSearchableCompanyName) {
             return;
         }
 
-        setData(prev => ({ ...prev, isLoading: true, isLoaded: false }));
-
         let isCurrentRequest = true;
-        const cleanName = companyName.trim();
+        const cleanName = normalizedCompanyName;
 
         const debouncedBrandFetch = debounce(async () => {
+            setData(prev => ({ ...prev, isLoading: true, isLoaded: false }));
+
             try {
                 const domain = cleanName.toLowerCase().replace(/[^a-z0-9]/g, '') + '.com';
 
@@ -116,9 +125,9 @@ const useBrandData = (companyName) => {
             isCurrentRequest = false;
             debouncedBrandFetch.cancel();
         };
-    }, [companyName]);
+    }, [hasSearchableCompanyName, normalizedCompanyName]);
 
-    return data;
+    return hasSearchableCompanyName ? data : INITIAL_BRAND_DATA;
 };
 
 
@@ -130,6 +139,55 @@ function AppV2() {
     const [leadDetails, setLeadDetails] = useState({ fullName: '', email: '', phone: '' });
 
     const brandData = useBrandData(companyName);
+
+    const handlePage1Submit = () => {
+        const normalizedBrandName = companyName.trim();
+        if (!normalizedBrandName) {
+            return;
+        }
+
+        capturePage1Journey({ brandName: normalizedBrandName })
+            .then((response) => {
+                console.log('[Engati Flow] Page 1 captured:', response);
+            })
+            .catch((error) => {
+                console.error('[Engati Flow] Page 1 capture failed:', error);
+            });
+
+        setPage(2);
+    };
+
+    const handlePage2Submit = (nextLeadDetails) => {
+        const normalizedBrandName = companyName.trim();
+        const stepOneTwoPayload = {
+            brandName: normalizedBrandName,
+            lead: nextLeadDetails
+        };
+
+        console.log('[RCS Demo] Section 1 + Section 2 payload:', stepOneTwoPayload);
+
+        capturePage2Journey({
+            fullName: nextLeadDetails.fullName,
+            email: nextLeadDetails.email,
+            phoneNumber: nextLeadDetails.phone
+        })
+            .then((response) => {
+                console.log('[Engati Flow] Page 2 captured:', response);
+            })
+            .catch((error) => {
+                console.error('[Engati Flow] Page 2 capture failed:', error);
+            });
+
+        setLeadDetails(nextLeadDetails);
+        setPage(3);
+    };
+
+    const handlePage3Submit = async (formValues) => {
+        console.log('[RCS Demo] Section 3 payload:', formValues);
+        const response = await capturePage3Journey({ formValues });
+        console.log('[Engati Flow] Page 3 captured:', response);
+        return response;
+    };
 
     return (
         <div className="min-h-screen bg-[#F8F9FA] antialiased font-sans overflow-x-hidden relative flex flex-col">
@@ -179,7 +237,7 @@ function AppV2() {
                                             key="p1"
                                             companyName={companyName}
                                             setCompanyName={setCompanyName}
-                                            onNext={() => setPage(2)}
+                                            onNext={handlePage1Submit}
                                         />
                                     )}
                                     {page === 2 && (
@@ -187,17 +245,7 @@ function AppV2() {
                                             key="p2"
                                             onBack={() => setPage(1)}
                                             initialForm={leadDetails}
-                                            onSubmit={(nextLeadDetails) => {
-                                                const normalizedBrandName = companyName.trim();
-                                                const stepOneTwoPayload = {
-                                                    brandName: normalizedBrandName,
-                                                    lead: nextLeadDetails
-                                                };
-
-                                                console.log('[RCS Demo] Section 1 + Section 2 payload:', stepOneTwoPayload);
-                                                setLeadDetails(nextLeadDetails);
-                                                setPage(3);
-                                            }}
+                                            onSubmit={handlePage2Submit}
                                         />
                                     )}
                                 </AnimatePresence>
@@ -218,11 +266,7 @@ function AppV2() {
                                 companyName={companyName}
                                 leadDetails={leadDetails}
                                 onBack={() => setPage(2)}
-                                onReset={() => {
-                                    setCompanyName('');
-                                    setLeadDetails({ fullName: '', email: '', phone: '' });
-                                    setPage(1);
-                                }}
+                                onSubmitFinal={handlePage3Submit}
                             />
                         </AnimatePresence>
                     )}
@@ -232,7 +276,6 @@ function AppV2() {
     );
 }
 
-// --- DYNAMIC ISLAND ---
 const DynamicIsland = ({ active }) => (
     <motion.div
         initial={{ width: 100, height: 28 }}
@@ -240,7 +283,6 @@ const DynamicIsland = ({ active }) => (
         transition={{ type: "spring", stiffness: 120, damping: 15 }}
         className="absolute top-7 left-1/2 -translate-x-1/2 bg-black rounded-[20px] z-50 flex items-center justify-center overflow-hidden shadow-sm"
     >
-        {/* Sensor Cutouts */}
         <div className="flex gap-2 opacity-40">
             <div className="w-3 h-3 rounded-full bg-[#1a1a1a]" />
             <div className="w-1.5 h-1.5 rounded-full bg-[#1a1a1a]" />
@@ -248,48 +290,55 @@ const DynamicIsland = ({ active }) => (
     </motion.div>
 );
 
-// --- PHONE STUDIO CONTAINER ---
 
 function PhoneStudio({ companyName, brandData }) {
-    const [scene, setScene] = useState('google');
-    const [cursorState, setCursorState] = useState('hidden'); // 'hidden', 'waiting', 'moving'
+    const normalizedCompanyName = companyName.trim();
+    const [rcsReadyBrand, setRcsReadyBrand] = useState('');
+    const [cursorState, setCursorState] = useState({ brandKey: '', value: 'hidden' }); // value: 'hidden' | 'waiting' | 'moving'
 
-    // Refs for Target Lock
     const phoneContainerRef = useRef(null);
     const chatButtonRef = useRef(null);
     const [cursorTarget, setCursorTarget] = useState({ x: 0, y: 0 });
     const [isClicking, setIsClicking] = useState(false);
+    const isRcsScene =
+        Boolean(normalizedCompanyName) &&
+        !brandData.isLoading &&
+        rcsReadyBrand === normalizedCompanyName;
+    const shouldAnimateToRcs =
+        Boolean(normalizedCompanyName) &&
+        !brandData.isLoading &&
+        brandData.isLoaded &&
+        !isRcsScene;
+    const activeScene = isRcsScene ? 'rcs' : 'google';
+    const activeCursorState =
+        shouldAnimateToRcs && cursorState.brandKey === normalizedCompanyName
+            ? cursorState.value
+            : 'hidden';
 
-    // Automation Sequence
     useEffect(() => {
-        if (!companyName.trim()) {
-            setScene('google');
-            setCursorState('hidden');
+        if (!shouldAnimateToRcs) {
             return;
         }
 
-        if (brandData.isLoading) {
-            setScene('google');
-            setCursorState('hidden');
-        }
+        const targetBrand = normalizedCompanyName;
+        let t1;
+        let t2;
 
-        if (brandData.isLoaded && scene === 'google') {
-            let t1, t2;
-            // 1. Wait 2s
-            t1 = setTimeout(() => {
-                setCursorState('waiting');
-                // 2. Move (To button)
-                t2 = setTimeout(() => {
-                    setCursorState('moving');
-                }, 100);
-            }, 2000);
-            return () => { clearTimeout(t1); clearTimeout(t2); };
-        }
-    }, [brandData, companyName, scene]);
+        t1 = setTimeout(() => {
+            setCursorState({ brandKey: targetBrand, value: 'waiting' });
+            t2 = setTimeout(() => {
+                setCursorState({ brandKey: targetBrand, value: 'moving' });
+            }, 100);
+        }, 2000);
 
-    // Calculate Target Coordinates
+        return () => {
+            clearTimeout(t1);
+            clearTimeout(t2);
+        };
+    }, [normalizedCompanyName, shouldAnimateToRcs]);
+
     useLayoutEffect(() => {
-        if (cursorState === 'moving' && chatButtonRef.current && phoneContainerRef.current) {
+        if (activeCursorState === 'moving' && chatButtonRef.current && phoneContainerRef.current) {
             const btnRect = chatButtonRef.current.getBoundingClientRect();
             const containerRect = phoneContainerRef.current.getBoundingClientRect();
 
@@ -298,13 +347,12 @@ function PhoneStudio({ companyName, brandData }) {
                 y: btnRect.top - containerRect.top + (btnRect.height / 2)
             });
         }
-    }, [cursorState]);
+    }, [activeCursorState]);
 
 
     return (
         <div className="relative mx-auto w-full max-w-[380px] perspective-1000">
 
-            {/* Phone Chassis */}
             <motion.div
                 ref={phoneContainerRef}
                 initial={{ y: 20, opacity: 0 }}
@@ -312,15 +360,11 @@ function PhoneStudio({ companyName, brandData }) {
                 transition={{ duration: 0.6, ease: "easeOut" }}
                 className="relative bg-[#1F1F1F] rounded-[56px] p-3 shadow-2xl ring-1 ring-white/10"
             >
-                {/* Dynamic Island Notch */}
-                <DynamicIsland active={scene === 'rcs'} />
-
-                {/* Screen */}
+                <DynamicIsland active={activeScene === 'rcs'} />
                 <div
                     className="relative bg-white rounded-[44px] overflow-hidden flex flex-col w-full h-full backface-hidden"
                     style={{ aspectRatio: '9/19.5' }}
                 >
-                    {/* Status Bar */}
                     <div className="h-12 bg-white flex items-center justify-between px-8 text-xs font-medium z-30 flex-shrink-0 select-none relative">
                         <span className="text-[#000000]">9:41</span>
                         <div className="flex items-center gap-1.5">
@@ -328,15 +372,11 @@ function PhoneStudio({ companyName, brandData }) {
                             <Battery className="w-5 h-5 text-[#000000]" />
                         </div>
                     </div>
-
-                    {/* Scene Container */}
                     <div className="flex-1 overflow-hidden relative z-10">
                         <AnimatePresence mode="wait">
-                            {scene === 'google' && <GoogleSearchScene key="google" companyName={companyName} brandData={brandData} chatButtonRef={chatButtonRef} />}
-                            {scene === 'rcs' && <RCSChatScene key="rcs" companyName={companyName} brandData={brandData} />}
+                            {activeScene === 'google' && <GoogleSearchScene key="google" companyName={companyName} brandData={brandData} chatButtonRef={chatButtonRef} />}
+                            {activeScene === 'rcs' && <RCSChatScene key="rcs" companyName={companyName} brandData={brandData} />}
                         </AnimatePresence>
-
-                        {/* Analyzing State */}
                         <AnimatePresence>
                             {brandData.isLoading && (
                                 <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-white/90 backdrop-blur-sm z-50 flex flex-col items-center justify-center text-center p-6 space-y-4">
@@ -351,10 +391,10 @@ function PhoneStudio({ companyName, brandData }) {
 
                         {/* Cursor Overlay - Ref Based */}
                         <AnimatePresence>
-                            {cursorState !== 'hidden' && (
+                            {activeCursorState !== 'hidden' && (
                                 <motion.div
                                     initial={{ top: '110%', left: '90%', opacity: 0 }}
-                                    animate={cursorState === 'moving' ? {
+                                    animate={activeCursorState === 'moving' ? {
                                         top: cursorTarget.y,
                                         left: cursorTarget.x,
                                         opacity: 1
@@ -367,12 +407,12 @@ function PhoneStudio({ companyName, brandData }) {
                                         type: "spring", stiffness: 100, damping: 20
                                     }}
                                     onAnimationComplete={() => {
-                                        if (cursorState === 'moving') {
+                                        if (activeCursorState === 'moving') {
                                             setIsClicking(true);
                                             setTimeout(() => {
                                                 setIsClicking(false);
-                                                setScene('rcs');
-                                                setCursorState('hidden');
+                                                setRcsReadyBrand(normalizedCompanyName);
+                                                setCursorState({ brandKey: normalizedCompanyName, value: 'hidden' });
                                             }, 200);
                                         }
                                     }}
@@ -455,11 +495,6 @@ function RCSChatScene({ companyName, brandData }) {
     const [showBotMessage, setShowBotMessage] = useState(false);
 
     useEffect(() => {
-        // Reset and start sequence
-        setShowUserMessage(false);
-        setShowTyping(false);
-        setShowBotMessage(false);
-
         const t1 = setTimeout(() => setShowUserMessage(true), 400);
         const t2 = setTimeout(() => setShowTyping(true), 1000);
         const t3 = setTimeout(() => {
@@ -614,10 +649,6 @@ function Page1({ companyName, setCompanyName, onNext }) {
 function Page2({ onBack, onSubmit, initialForm }) {
     const [form, setForm] = useState(initialForm);
 
-    useEffect(() => {
-        setForm(initialForm);
-    }, [initialForm]);
-
     const handleContinue = () => {
         const normalizedForm = {
             fullName: form.fullName.trim(),
@@ -696,7 +727,7 @@ function Page2({ onBack, onSubmit, initialForm }) {
         </motion.div >
     );
 }
-function Page3({ companyName, leadDetails, onBack, onReset }) {
+function Page3({ companyName, leadDetails, onBack, onSubmitFinal }) {
     return (
         <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.4 }} className="space-y-5 w-full">
             <button onClick={onBack} className="flex items-center gap-2 text-[#666666] hover:text-[#000000] transition-colors group">
@@ -709,7 +740,7 @@ function Page3({ companyName, leadDetails, onBack, onReset }) {
                     email: leadDetails.email,
                     phone: leadDetails.phone
                 }}
-                onReset={onReset}
+                onSubmitFinal={onSubmitFinal}
             />
         </motion.div>
     );

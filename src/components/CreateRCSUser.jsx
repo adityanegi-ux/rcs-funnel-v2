@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useForm, useWatch } from 'react-hook-form';
 import { Upload } from 'lucide-react';
 
 import ImageUploadCropper from './rcs/components/ImageUploadCropper';
@@ -28,26 +29,25 @@ function FieldLabel({ children, required }) {
   );
 }
 
-function TextInput({ type = 'text', value, placeholder, onChange }) {
+function TextInput({ type = 'text', placeholder, registerProps }) {
   return (
     <input
       type={type}
-      value={value}
       placeholder={placeholder}
-      onChange={onChange}
+      {...registerProps}
       className='w-full h-14 rounded-2xl border border-[#C5CED8] bg-white px-4 text-[#111827] text-base placeholder:text-[#667085] outline-none focus:ring-2 focus:ring-[#BE244A]/20 focus:border-[#BE244A] transition-all'
     />
   );
 }
 
-function InputWithActionButton({ value, placeholder, onChange, onAction }) {
+function InputWithActionButton({ type = 'text', placeholder, registerProps, onAction }) {
   return (
     <div className='grid grid-cols-1 md:grid-cols-[1fr_auto] gap-3'>
-      <TextInput value={value} placeholder={placeholder} onChange={onChange} />
+      <TextInput type={type} placeholder={placeholder} registerProps={registerProps} />
       <button
         type='button'
         onClick={onAction}
-        className='h-14 px-5 rounded-2xl border border-[#C5CED8] bg-white text-[#344054] text-base font-semibold hover:bg-[#F8FAFC] transition-colors flex items-center justify-center gap-2'
+        className='h-14 px-5 rounded-2xl border border-[#C5CED8] bg-white text-[#344054] text-base font-semibold hover:bg-[#F8FAFC] hover:cursor-pointer transition-colors flex items-center justify-center gap-2'
       >
         <Upload className='w-4 h-4' />
         Upload &amp; Crop
@@ -56,38 +56,63 @@ function InputWithActionButton({ value, placeholder, onChange, onAction }) {
   );
 }
 
-function CreateRCSUser({ prefill, onReset }) {
-  const [form, setForm] = useState(() => createInitialRcsForm(prefill));
+function WatchedPhonePreview({ control }) {
+  const form = useWatch({ control });
+
+  return <RcsPhonePreview form={form || {}} />;
+}
+
+function CreateRCSUser({ prefill, onSubmitFinal }) {
+  const initialValues = useMemo(() => createInitialRcsForm(prefill), [
+    prefill?.brandName,
+    prefill?.email,
+    prefill?.phone,
+    prefill?.fullName,
+  ]);
+  const { register, control, reset, getValues, setValue } = useForm({
+    defaultValues: initialValues,
+  });
   const [activeUploadKey, setActiveUploadKey] = useState(null);
+  const [isSubmittingFinal, setIsSubmittingFinal] = useState(false);
+  const [logoUrlValue = '', headerImageUrlValue = ''] = useWatch({
+    control,
+    name: ['logoUrl', 'headerImageUrl'],
+  });
   const activeUploadSpec = useMemo(
     () => UPLOAD_SPECS.find((uploadSpec) => uploadSpec.key === activeUploadKey) || null,
     [activeUploadKey]
   );
+  const activeUploadValue =
+    activeUploadSpec?.key === 'headerImageUrl' ? headerImageUrlValue : logoUrlValue;
 
   useEffect(() => {
-    setForm(createInitialRcsForm(prefill));
-  }, [prefill?.brandName, prefill?.email, prefill?.phone, prefill?.fullName]);
-
-  const updateField = (key, value) => {
-    setForm((prev) => ({
-      ...prev,
-      [key]: value,
-    }));
-  };
+    reset(createInitialRcsForm(prefill));
+  }, [prefill?.brandName, prefill?.email, prefill?.phone, prefill?.fullName, reset]);
 
   const logUploadIntent = (key) => {
-    console.log('[RCS Demo] Upload placeholder clicked:', key, 'current value:', form[key] || '(empty)');
+    console.log(
+      '[RCS Demo] Upload placeholder clicked:',
+      key,
+      'current value:',
+      getValues(key) || '(empty)'
+    );
   };
 
-  const logSectionThreeData = () => {
-    console.log('[RCS Demo] Section 3 payload:', form);
-  };
+  const handleSubmitFinal = async () => {
+    try {
+      setIsSubmittingFinal(true);
+      const formValues = getValues();
 
-  const onToggleOption = (key) => {
-    setForm((prev) => ({
-      ...prev,
-      [key]: !prev[key],
-    }));
+      if (onSubmitFinal) {
+        await onSubmitFinal(formValues);
+      } else {
+        console.log('[RCS Demo] Section 3 payload:', formValues);
+      }
+    } catch (error) {
+      console.error('[RCS Demo] Section 3 submit failed:', error);
+    } finally {
+      setIsSubmittingFinal(false);
+    }
   };
 
   return (
@@ -102,17 +127,15 @@ function CreateRCSUser({ prefill, onReset }) {
               <div className='space-y-2'>
                 <FieldLabel required>Business Name</FieldLabel>
                 <TextInput
-                  value={form.businessName}
                   placeholder='Enter business name'
-                  onChange={(event) => updateField('businessName', event.target.value)}
+                  registerProps={register('businessName')}
                 />
               </div>
               <div className='space-y-2'>
                 <FieldLabel required>Short Description</FieldLabel>
                 <TextInput
-                  value={form.shortDescription}
                   placeholder='Add short business description'
-                  onChange={(event) => updateField('shortDescription', event.target.value)}
+                  registerProps={register('shortDescription')}
                 />
               </div>
             </div>
@@ -120,9 +143,8 @@ function CreateRCSUser({ prefill, onReset }) {
             <div className='space-y-2'>
               <FieldLabel>Logo URL (PNG)</FieldLabel>
               <InputWithActionButton
-                value={form.logoUrl}
                 placeholder='https://example.com/logo.png'
-                onChange={(event) => updateField('logoUrl', event.target.value)}
+                registerProps={register('logoUrl')}
                 onAction={() => {
                   logUploadIntent('logoUrl');
                   setActiveUploadKey('logoUrl');
@@ -133,9 +155,8 @@ function CreateRCSUser({ prefill, onReset }) {
             <div className='space-y-2'>
               <FieldLabel>Header Image URL (PNG)</FieldLabel>
               <InputWithActionButton
-                value={form.headerImageUrl}
                 placeholder='https://example.com/header.png'
-                onChange={(event) => updateField('headerImageUrl', event.target.value)}
+                registerProps={register('headerImageUrl')}
                 onAction={() => {
                   logUploadIntent('headerImageUrl');
                   setActiveUploadKey('headerImageUrl');
@@ -144,23 +165,21 @@ function CreateRCSUser({ prefill, onReset }) {
             </div>
           </SectionCard>
 
-          <SectionCard title='Contact Actions'>
+          <SectionCard title='Contact Info'>
             <div className='grid grid-cols-1 md:grid-cols-2 gap-4'>
               <div className='space-y-2'>
                 <FieldLabel required>Phone Number</FieldLabel>
                 <TextInput
-                  value={form.phoneNumber}
                   placeholder='+1 415 555 0142'
-                  onChange={(event) => updateField('phoneNumber', event.target.value)}
+                  registerProps={register('phoneNumber')}
                 />
               </div>
               <div className='space-y-2'>
                 <FieldLabel required>Website URL</FieldLabel>
                 <TextInput
                   type='url'
-                  value={form.websiteUrl}
-                  placeholder='https://engati.com'
-                  onChange={(event) => updateField('websiteUrl', event.target.value)}
+                  placeholder='https://example.com'
+                  registerProps={register('websiteUrl')}
                 />
               </div>
             </div>
@@ -169,9 +188,8 @@ function CreateRCSUser({ prefill, onReset }) {
               <FieldLabel required>Email Address</FieldLabel>
               <TextInput
                 type='email'
-                value={form.emailAddress}
-                placeholder='hello@engati.com'
-                onChange={(event) => updateField('emailAddress', event.target.value)}
+                placeholder='example@gamil.com'
+                registerProps={register('emailAddress')}
               />
             </div>
           </SectionCard>
@@ -180,9 +198,8 @@ function CreateRCSUser({ prefill, onReset }) {
             <div className='space-y-2'>
               <FieldLabel>Info Summary</FieldLabel>
               <textarea
-                value={form.infoSummary}
                 placeholder='Write how your business helps users'
-                onChange={(event) => updateField('infoSummary', event.target.value)}
+                {...register('infoSummary')}
                 className='w-full min-h-28 rounded-2xl border border-[#C5CED8] bg-white p-4 text-[#111827] text-base placeholder:text-[#667085] outline-none focus:ring-2 focus:ring-[#BE244A]/20 focus:border-[#BE244A] transition-all resize-none'
               />
             </div>
@@ -192,16 +209,14 @@ function CreateRCSUser({ prefill, onReset }) {
                 <FieldLabel>Support Start Time</FieldLabel>
                 <TextInput
                   type='time'
-                  value={form.supportStartTime}
-                  onChange={(event) => updateField('supportStartTime', event.target.value)}
+                  registerProps={register('supportStartTime')}
                 />
               </div>
               <div className='space-y-2'>
                 <FieldLabel>Support End Time</FieldLabel>
                 <TextInput
                   type='time'
-                  value={form.supportEndTime}
-                  onChange={(event) => updateField('supportEndTime', event.target.value)}
+                  registerProps={register('supportEndTime')}
                 />
               </div>
             </div>
@@ -209,9 +224,8 @@ function CreateRCSUser({ prefill, onReset }) {
             <div className='space-y-2'>
               <FieldLabel>Support Address</FieldLabel>
               <TextInput
-                value={form.supportAddress}
                 placeholder='Add your support address'
-                onChange={(event) => updateField('supportAddress', event.target.value)}
+                registerProps={register('supportAddress')}
               />
             </div>
           </SectionCard>
@@ -226,38 +240,29 @@ function CreateRCSUser({ prefill, onReset }) {
                   <span className='text-base font-semibold text-[#344054]'>{option.label}</span>
                   <input
                     type='checkbox'
-                    checked={Boolean(form[option.key])}
-                    onChange={() => onToggleOption(option.key)}
+                    {...register(option.key)}
                     className='h-5 w-5 accent-[#BE244A]'
                   />
                 </label>
               ))}
             </div>
           </SectionCard>
+
+          <div className='rounded-3xl border border-[#D7DEE7] bg-[#F2F4F7] p-5 space-y-3'>
+            <button
+              type='button'
+              onClick={handleSubmitFinal}
+              disabled={isSubmittingFinal}
+              className='h-12 w-full rounded-xl bg-[#BE244A] text-white text-base font-semibold hover:bg-[#A91F42] hover:cursor-pointer transition-colors disabled:opacity-60 disabled:cursor-not-allowed'
+            >
+              {isSubmittingFinal ? 'Submitting...' : 'Submit Final Payload'}
+            </button>
+          </div>
         </div>
 
-        <div className='lg:sticky lg:top-24 lg:self-start h-fit'>
-          <RcsPhonePreview form={form} />
+        <div className='lg:sticky lg:top-20 lg:self-start h-fit'>
+          <WatchedPhonePreview control={control} />
         </div>
-      </div>
-
-      <div className='flex flex-wrap items-center justify-end gap-3'>
-        {onReset ? (
-          <button
-            type='button'
-            onClick={onReset}
-            className='h-11 px-4 rounded-xl border border-[#C5CED8] bg-white text-[#344054] text-sm font-semibold hover:bg-[#F8FAFC] transition-colors'
-          >
-            Restart Funnel
-          </button>
-        ) : null}
-        <button
-          type='button'
-          onClick={logSectionThreeData}
-          className='h-11 px-4 rounded-xl bg-[#111827] text-white text-sm font-semibold hover:bg-[#1F2937] transition-colors'
-        >
-          Log Section 3 Data
-        </button>
       </div>
 
       {activeUploadSpec ? (
@@ -270,10 +275,10 @@ function CreateRCSUser({ prefill, onReset }) {
             onClick={(event) => event.stopPropagation()}
           >
             <div className='flex items-center justify-between mb-3'>
-              <h4 className='text-lg font-semibold text-[#111827]'>Upload &amp; Crop {activeUploadSpec.title}</h4>
+              <h4 className='text-lg font-semibold text-[#111827] hover:cursor-pointer'>Upload &amp; Crop {activeUploadSpec.title}</h4>
               <button
                 type='button'
-                className='h-9 px-3 rounded-lg border border-[#C5CED8] text-sm font-semibold text-[#344054] hover:bg-white transition-colors'
+                className='h-9 px-3 rounded-lg border border-[#C5CED8] text-sm font-semibold text-[#344054] hover:bg-white  transition-colors'
                 onClick={() => setActiveUploadKey(null)}
               >
                 Close
@@ -282,8 +287,10 @@ function CreateRCSUser({ prefill, onReset }) {
 
             <ImageUploadCropper
               spec={activeUploadSpec}
-              value={form[activeUploadSpec.key]}
-              onChange={(nextValue) => updateField(activeUploadSpec.key, nextValue)}
+              value={activeUploadValue || ''}
+              onChange={(nextValue) =>
+                setValue(activeUploadSpec.key, nextValue, { shouldDirty: true, shouldTouch: true })
+              }
               onDone={() => setActiveUploadKey(null)}
             />
           </div>
