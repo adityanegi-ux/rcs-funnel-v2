@@ -2,7 +2,6 @@ import { useMemo, useState } from 'react';
 import { Check, ChevronLeft, EllipsisVertical, Globe, Mail, Phone } from 'lucide-react';
 
 import {
-  formatTimeWithAmPm,
   getActionLabel,
   getEnabledOptions,
   getSubmissionReadiness,
@@ -79,9 +78,9 @@ function RcsPhonePreview({ form }) {
                 </div>
 
                 <div className='grid grid-cols-3 mt-4'>
-                  <PreviewAction icon={Phone} label={getActionLabel(form.phoneNumber, 'Add number')} />
-                  <PreviewAction icon={Globe} label={getActionLabel(form.websiteUrl, 'Add URL')} />
-                  <PreviewAction icon={Mail} label={getActionLabel(form.emailAddress, 'Add email')} />
+                  <PreviewAction icon={Phone} label={getActionLabel(form.callValue, form.callLabel || 'Call')} />
+                  <PreviewAction icon={Globe} label={getActionLabel(form.websiteValue, form.websiteLabel || 'Website')} />
+                  <PreviewAction icon={Mail} label={getActionLabel(form.emailValue, form.emailLabel || 'Email')} />
                 </div>
 
                 <div className='grid grid-cols-2 border-b border-[#E2E8F0] mt-4'>
@@ -113,7 +112,7 @@ function RcsPhonePreview({ form }) {
                       </p>
                       <div className='h-px bg-[#E2E8F0]' />
                       <p className='text-xs text-[#334155]'>
-                        Support hours: {formatTimeWithAmPm(form.supportStartTime)} - {formatTimeWithAmPm(form.supportEndTime)}
+                        Support hours: {form.supportHours?.trim() || '--'}
                       </p>
                       {form.supportAddress?.trim() ? (
                         <>

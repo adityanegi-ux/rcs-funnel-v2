@@ -29,6 +29,14 @@ function FieldLabel({ children, required }) {
   );
 }
 
+function ValidationError({ message }) {
+  if (!message) {
+    return null;
+  }
+
+  return <p className='text-xs text-[#BE244A] mt-1'>{message}</p>;
+}
+
 function TextInput({ type = 'text', placeholder, registerProps }) {
   return (
     <input
@@ -63,13 +71,16 @@ function WatchedPhonePreview({ control }) {
 }
 
 function CreateRCSUser({ prefill, onSubmitFinal }) {
-  const initialValues = useMemo(() => createInitialRcsForm(prefill), [
-    prefill?.brandName,
-    prefill?.email,
-    prefill?.phone,
-    prefill?.fullName,
-  ]);
-  const { register, control, reset, getValues, setValue } = useForm({
+  const initialValues = useMemo(() => createInitialRcsForm(prefill), [prefill]);
+  const {
+    register,
+    control,
+    reset,
+    getValues,
+    setValue,
+    handleSubmit,
+    formState: { errors },
+  } = useForm({
     defaultValues: initialValues,
   });
   const [activeUploadKey, setActiveUploadKey] = useState(null);
@@ -86,8 +97,8 @@ function CreateRCSUser({ prefill, onSubmitFinal }) {
     activeUploadSpec?.key === 'headerImageUrl' ? headerImageUrlValue : logoUrlValue;
 
   useEffect(() => {
-    reset(createInitialRcsForm(prefill));
-  }, [prefill?.brandName, prefill?.email, prefill?.phone, prefill?.fullName, reset]);
+    reset(initialValues);
+  }, [initialValues, reset]);
 
   const logUploadIntent = (key) => {
     console.log(
@@ -98,10 +109,9 @@ function CreateRCSUser({ prefill, onSubmitFinal }) {
     );
   };
 
-  const handleSubmitFinal = async () => {
+  const handleSubmitFinal = async (formValues) => {
     try {
       setIsSubmittingFinal(true);
-      const formValues = getValues();
 
       if (onSubmitFinal) {
         await onSubmitFinal(formValues);
@@ -118,7 +128,7 @@ function CreateRCSUser({ prefill, onSubmitFinal }) {
   return (
     <div className='space-y-6'>
       <div className='grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_420px] gap-6 items-start'>
-        <div className='space-y-4'>
+        <div className='space-y-4 xl:max-h-[calc(100vh-120px)] xl:overflow-y-auto xl:pr-2'>
           <SectionCard
             title='Business Profile'
             subtitle='Configure your business info and preview before final submission.'
@@ -127,70 +137,148 @@ function CreateRCSUser({ prefill, onSubmitFinal }) {
               <div className='space-y-2'>
                 <FieldLabel required>Business Name</FieldLabel>
                 <TextInput
-                  placeholder='Enter business name'
-                  registerProps={register('businessName')}
+                  placeholder='Acme Foods'
+                  registerProps={register('businessName', {
+                    required: 'Business Name is required',
+                    minLength: { value: 2, message: 'Use at least 2 characters' },
+                    maxLength: { value: 60, message: 'Keep it within 60 characters' },
+                  })}
                 />
+                <ValidationError message={errors.businessName?.message} />
               </div>
               <div className='space-y-2'>
                 <FieldLabel required>Short Description</FieldLabel>
                 <TextInput
-                  placeholder='Add short business description'
-                  registerProps={register('shortDescription')}
+                  placeholder='Fresh groceries delivered in 30 minutes.'
+                  registerProps={register('shortDescription', {
+                    required: 'Short Description is required',
+                    minLength: { value: 5, message: 'Use at least 5 characters' },
+                    maxLength: { value: 120, message: 'Keep it within 120 characters' },
+                  })}
                 />
+                <ValidationError message={errors.shortDescription?.message} />
               </div>
             </div>
 
             <div className='space-y-2'>
               <FieldLabel>Logo URL (PNG)</FieldLabel>
               <InputWithActionButton
-                placeholder='https://example.com/logo.png'
-                registerProps={register('logoUrl')}
+                placeholder='https://cdn.yourdomain.com/assets/logo.png'
+                registerProps={register('logoUrl', {
+                  pattern: {
+                    value: /^https:\/\/.+\.png$/i,
+                    message: 'Use a valid https://...png URL',
+                  },
+                })}
                 onAction={() => {
                   logUploadIntent('logoUrl');
                   setActiveUploadKey('logoUrl');
                 }}
               />
+              <ValidationError message={errors.logoUrl?.message} />
             </div>
 
             <div className='space-y-2'>
               <FieldLabel>Header Image URL (PNG)</FieldLabel>
               <InputWithActionButton
-                placeholder='https://example.com/header.png'
-                registerProps={register('headerImageUrl')}
+                placeholder='https://cdn.yourdomain.com/assets/header.png'
+                registerProps={register('headerImageUrl', {
+                  pattern: {
+                    value: /^https:\/\/.+\.png$/i,
+                    message: 'Use a valid https://...png URL',
+                  },
+                })}
                 onAction={() => {
                   logUploadIntent('headerImageUrl');
                   setActiveUploadKey('headerImageUrl');
                 }}
               />
+              <ValidationError message={errors.headerImageUrl?.message} />
             </div>
           </SectionCard>
 
-          <SectionCard title='Contact Info'>
-            <div className='grid grid-cols-1 md:grid-cols-2 gap-4'>
+          <SectionCard title='Contact Actions'>
+            <div className='grid grid-cols-1 md:grid-cols-2 gap-4 items-start'>
               <div className='space-y-2'>
-                <FieldLabel required>Phone Number</FieldLabel>
+                <FieldLabel>Call Label</FieldLabel>
                 <TextInput
-                  placeholder='+1 415 555 0142'
-                  registerProps={register('phoneNumber')}
+                  placeholder='Call'
+                  registerProps={register('callLabel', {
+                    maxLength: { value: 30, message: 'Keep it within 30 characters' },
+                  })}
                 />
+                <ValidationError message={errors.callLabel?.message} />
               </div>
               <div className='space-y-2'>
-                <FieldLabel required>Website URL</FieldLabel>
+                <FieldLabel required>Call Value</FieldLabel>
                 <TextInput
-                  type='url'
-                  placeholder='https://example.com'
-                  registerProps={register('websiteUrl')}
+                  placeholder='919876543210'
+                  registerProps={register('callValue', {
+                    required: 'Call Value is required',
+                    pattern: {
+                      value: /^(\+91\d{10}|91\d{10}|0\d{10}|\d{10})$/,
+                      message: 'Use 10 digits, 0+10, 91+10, or +91+10',
+                    },
+                  })}
                 />
+                <ValidationError message={errors.callValue?.message} />
               </div>
             </div>
 
-            <div className='space-y-2 md:max-w-[50%]'>
-              <FieldLabel required>Email Address</FieldLabel>
-              <TextInput
-                type='email'
-                placeholder='example@gamil.com'
-                registerProps={register('emailAddress')}
-              />
+            <div className='grid grid-cols-1 md:grid-cols-2 gap-4 items-start'>
+              <div className='space-y-2'>
+                <FieldLabel>Website Label</FieldLabel>
+                <TextInput
+                  placeholder='Website'
+                  registerProps={register('websiteLabel', {
+                    maxLength: { value: 30, message: 'Keep it within 30 characters' },
+                  })}
+                />
+                <ValidationError message={errors.websiteLabel?.message} />
+              </div>
+              <div className='space-y-2'>
+                <FieldLabel required>Website Value</FieldLabel>
+                <TextInput
+                  type='url'
+                  placeholder='https://acme.com'
+                  registerProps={register('websiteValue', {
+                    required: 'Website Value is required',
+                    pattern: {
+                      value: /^https:\/\/.+/i,
+                      message: 'Use a valid https:// URL',
+                    },
+                  })}
+                />
+                <ValidationError message={errors.websiteValue?.message} />
+              </div>
+            </div>
+
+            <div className='grid grid-cols-1 md:grid-cols-2 gap-4 items-start'>
+              <div className='space-y-2'>
+                <FieldLabel>Email Label</FieldLabel>
+                <TextInput
+                  placeholder='Email'
+                  registerProps={register('emailLabel', {
+                    maxLength: { value: 30, message: 'Keep it within 30 characters' },
+                  })}
+                />
+                <ValidationError message={errors.emailLabel?.message} />
+              </div>
+              <div className='space-y-2'>
+                <FieldLabel required>Email Value</FieldLabel>
+                <TextInput
+                  type='email'
+                  placeholder='hello@acme.com'
+                  registerProps={register('emailValue', {
+                    required: 'Email Value is required',
+                    pattern: {
+                      value: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
+                      message: 'Use a valid email',
+                    },
+                  })}
+                />
+                <ValidationError message={errors.emailValue?.message} />
+              </div>
             </div>
           </SectionCard>
 
@@ -198,33 +286,24 @@ function CreateRCSUser({ prefill, onSubmitFinal }) {
             <div className='space-y-2'>
               <FieldLabel>Info Summary</FieldLabel>
               <textarea
-                placeholder='Write how your business helps users'
+                placeholder='We help users order groceries and track delivery.'
                 {...register('infoSummary')}
                 className='w-full min-h-28 rounded-2xl border border-[#C5CED8] bg-white p-4 text-[#111827] text-base placeholder:text-[#667085] outline-none focus:ring-2 focus:ring-[#BE244A]/20 focus:border-[#BE244A] transition-all resize-none'
               />
             </div>
 
-            <div className='grid grid-cols-1 md:grid-cols-2 gap-4'>
-              <div className='space-y-2'>
-                <FieldLabel>Support Start Time</FieldLabel>
-                <TextInput
-                  type='time'
-                  registerProps={register('supportStartTime')}
-                />
-              </div>
-              <div className='space-y-2'>
-                <FieldLabel>Support End Time</FieldLabel>
-                <TextInput
-                  type='time'
-                  registerProps={register('supportEndTime')}
-                />
-              </div>
+            <div className='space-y-2'>
+              <FieldLabel>Support Hours</FieldLabel>
+              <TextInput
+                placeholder='Mon-Fri, 9 AM - 6 PM'
+                registerProps={register('supportHours')}
+              />
             </div>
 
             <div className='space-y-2'>
               <FieldLabel>Support Address</FieldLabel>
               <TextInput
-                placeholder='Add your support address'
+                placeholder='2nd Floor, MG Road, Bengaluru 560001'
                 registerProps={register('supportAddress')}
               />
             </div>
@@ -251,7 +330,7 @@ function CreateRCSUser({ prefill, onSubmitFinal }) {
           <div className='rounded-3xl border border-[#D7DEE7] bg-[#F2F4F7] p-5 space-y-3'>
             <button
               type='button'
-              onClick={handleSubmitFinal}
+              onClick={handleSubmit(handleSubmitFinal)}
               disabled={isSubmittingFinal}
               className='h-12 w-full rounded-xl bg-[#BE244A] text-white text-base font-semibold hover:bg-[#A91F42] hover:cursor-pointer transition-colors disabled:opacity-60 disabled:cursor-not-allowed'
             >
@@ -260,7 +339,7 @@ function CreateRCSUser({ prefill, onSubmitFinal }) {
           </div>
         </div>
 
-        <div className='lg:sticky lg:top-20 lg:self-start h-fit'>
+        <div className='xl:sticky xl:top-20 xl:self-start h-fit'>
           <WatchedPhonePreview control={control} />
         </div>
       </div>

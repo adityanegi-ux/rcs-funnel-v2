@@ -27,10 +27,35 @@ const INITIAL_BRAND_DATA = {
     isLoaded: false
 };
 
-const useBrandData = (companyName) => {
+const BLOCKED_BRAND_TERMS = [
+    'fuck',
+    'shit',
+    'bitch',
+    'asshole',
+    'bastard',
+    'dick',
+    'porn',
+    'sex',
+    'xxx',
+    'nude',
+    'nsfw',
+    'nigga',
+    'cunt',
+    'whore',
+    'slut'
+];
+
+const BLOCKED_BRAND_REGEX = new RegExp(
+    `\\b(${BLOCKED_BRAND_TERMS.map((term) => term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})\\b`,
+    'i'
+);
+
+const hasBlockedBrandTerm = (value) => BLOCKED_BRAND_REGEX.test(String(value || '').trim());
+
+const useBrandData = (companyName, shouldFetchPreview) => {
     const [data, setData] = useState(INITIAL_BRAND_DATA);
     const normalizedCompanyName = companyName.trim();
-    const hasSearchableCompanyName = normalizedCompanyName.length >= 2;
+    const hasSearchableCompanyName = shouldFetchPreview && normalizedCompanyName.length >= 2;
 
     const getSitelinks = (industry) => {
         switch (industry) {
@@ -79,19 +104,33 @@ const useBrandData = (companyName) => {
             setData(prev => ({ ...prev, isLoading: true, isLoaded: false }));
 
             try {
-                const domain = cleanName.toLowerCase().replace(/[^a-z0-9]/g, '') + '.com';
+                const domainSlug = cleanName.toLowerCase().replace(/[^a-z0-9]/g, '');
+                const domain = `${domainSlug}.com`;
 
                 // 1. Google Favicon API
                 const logoUrl = `https://www.google.com/s2/favicons?domain=${domain}&sz=128`;
 
                 // 2. Wikipedia Summary
                 let description = '';
-                try {
-                    const wikiRes = await axios.get(`https://en.wikipedia.org/api/rest_v1/page/summary/${cleanName}`);
-                    if (wikiRes.data && wikiRes.data.extract) {
-                        description = wikiRes.data.extract.split('.')[0] + '.';
+                const preferredWikiQueries = [
+                    `${cleanName} (India)`,
+                    `${cleanName} India`,
+                    cleanName
+                ];
+
+                for (const query of preferredWikiQueries) {
+                    try {
+                        const wikiRes = await axios.get(`https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(query)}`);
+                        if (wikiRes.data?.extract) {
+                            description = wikiRes.data.extract.split('.')[0] + '.';
+                            break;
+                        }
+                    } catch (error) {
+                        // Try next query preference.
                     }
-                } catch (e) {
+                }
+
+                if (!description) {
                     description = `Official verified business account for ${cleanName}. Connect with us for the best experience.`;
                 }
 
@@ -136,15 +175,23 @@ const useBrandData = (companyName) => {
 function AppV2() {
     const [page, setPage] = useState(1);
     const [companyName, setCompanyName] = useState('');
+    const [isPreviewActivated, setIsPreviewActivated] = useState(false);
     const [leadDetails, setLeadDetails] = useState({ fullName: '', email: '', phone: '' });
 
-    const brandData = useBrandData(companyName);
+    const brandData = useBrandData(companyName, isPreviewActivated);
 
     const handlePage1Submit = () => {
         const normalizedBrandName = companyName.trim();
         if (!normalizedBrandName) {
             return;
         }
+
+        if (hasBlockedBrandTerm(normalizedBrandName)) {
+            alert('Please enter a valid brand name.');
+            return;
+        }
+
+        setIsPreviewActivated(true);
 
         capturePage1Journey({ brandName: normalizedBrandName })
             .then((response) => {
@@ -209,10 +256,11 @@ function AppV2() {
                         onClick={() => {
                             setPage(1);
                             setCompanyName('');
+                            setIsPreviewActivated(false);
                             setLeadDetails({ fullName: '', email: '', phone: '' });
                         }}
                     >
-                        <svg width="140" height="40" viewBox="0 0 856 247" fill="none" className="h-8 w-auto overflow-visible" xmlns="http://www.w3.org/2000/svg">
+                        <svg width="150" height="44" viewBox="0 0 870 247" fill="none" className="h-8 w-auto block overflow-visible" xmlns="http://www.w3.org/2000/svg">
                             <path fillRule="evenodd" clipRule="evenodd" d="M110.262 153.305C109.688 145.274 108.567 138.676 108.567 132.403C108.811 128.89 109.795 125.468 111.455 122.363C114.897 115.459 118.913 108.867 121.75 102.026C124.074 96.3147 127.2 93.7389 132.045 94.869C133.216 95.1681 134.305 95.7276 135.23 96.506C136.155 97.2843 136.892 98.2614 137.387 99.3643C137.881 100.467 138.121 101.668 138.087 102.876C138.053 104.084 137.747 105.269 137.191 106.343C134.303 113.801 130.287 120.972 127.152 128.375C125.862 131.166 125.075 134.163 124.828 137.228C125.402 146.957 126.523 156.446 127.41 166.165C127.983 174.451 121.96 178.467 114.542 174.451C106.51 170.183 99.1009 165.272 91.0635 161.257C87.7668 159.668 84.0776 159.079 80.4502 159.561C71.2321 161.107 61.7951 160.748 52.7213 158.506C43.6475 156.263 35.1294 152.185 27.6927 146.523C20.256 140.861 14.0583 133.735 9.48217 125.586C4.90602 117.436 2.04845 108.434 1.08575 99.1373C-3.18251 60.155 27.4497 22.931 65.5543 21.8009C73.807 21.5656 82.0119 23.1318 89.5977 26.3904C105.919 33.5472 111.63 52.7544 104.801 71.9644C100.502 83.7613 93.3157 94.2929 83.8981 102.597C79.3086 106.613 73.8585 106.865 71.0302 103.17C67.588 98.5808 69.0222 94.3183 73.0381 90.8675C81.6435 82.8359 88.7945 73.6568 90.8025 61.6093C93.3841 48.1132 86.5342 39.2612 73.0381 38.131C47.2392 35.5494 22.0656 56.4604 17.4847 83.9546C13.4689 110.006 30.9808 137.248 56.1515 142.397C64.0854 143.912 72.2243 144.018 80.1949 142.709C86.2187 141.831 91.0549 141.831 95.9513 145.291C100.217 147.855 104.548 150.173 110.262 153.305Z" fill="#AE1536" />
                             <path d="M157.026 102.591C156.963 102.47 157.216 91.9776 157.216 91.9776C156.933 87.5715 157.125 83.1477 157.789 78.7827C159.224 67.3089 162.058 59.0104 166.395 53.8616C170.144 49.5848 174.609 45.9935 179.59 43.2483C187.696 40.0412 196.36 38.481 205.076 38.6588C212.35 38.662 219.487 40.6356 225.729 44.3698C231.779 47.8127 236.523 53.1569 239.225 59.5727C241.806 65.8489 243.241 75.8942 243.241 89.3903V140.363H230.619V93.1107C230.871 85.4447 230.39 77.7723 229.185 70.1974C228.205 64.5277 225.023 59.4754 220.333 56.142C215.744 53.2535 209.473 52.1262 200.561 52.1262C193.152 52.0871 185.922 54.3968 179.908 58.7236C173.884 63.3132 172.048 70.4499 171.128 76.5597C170.099 85.6631 169.697 94.8265 169.926 103.985V140.394H157.026V102.591Z" fill="#403F42" />
                             <path d="M442.013 36.4272C449.149 36.2431 456.237 37.6391 462.77 40.5153C469.303 43.3915 475.119 47.6768 479.802 53.0643C488.827 62.7727 493.752 75.5919 493.551 88.8454V141.008H480.055V118.347C473.15 131.542 460.282 138.685 441.95 140.38C435.038 140.628 428.154 139.377 421.771 136.711C415.388 134.046 409.658 130.03 404.976 124.939C395.919 115.209 390.817 102.451 390.666 89.1593C390.516 75.8675 395.327 62.9972 404.161 53.0643C408.86 47.6803 414.689 43.3982 421.231 40.5227C427.773 37.6472 434.869 36.2488 442.013 36.4272V36.4272ZM442.013 48.73C436.909 48.7164 431.857 49.7512 427.17 51.7703C422.482 53.7893 418.259 56.7497 414.763 60.4678C411.061 64.1974 408.139 68.6278 406.169 73.4998C404.199 78.3718 403.22 83.5877 403.289 88.8425C403.251 95.8493 405.023 102.747 408.435 108.867C411.664 114.878 416.54 119.843 422.49 123.181C428.32 126.587 434.958 128.365 441.709 128.327C464.37 126.003 476.925 112.886 479.498 88.7794C479.62 83.5427 478.694 78.3345 476.772 73.4615C474.851 68.5884 471.974 64.149 468.311 60.4047C465.013 56.697 460.96 53.7372 456.425 51.7237C451.889 49.7102 446.975 48.6895 442.013 48.73V48.73Z" fill="#403F42" />
@@ -225,10 +273,10 @@ function AppV2() {
             </header>
 
             {/* Main Content - Centered */}
-            <main className={`flex-1 flex ${page === 3 ? 'items-start' : 'items-center'} pt-24 pb-16 relative z-10 w-full`}>
+            <main className="flex-1 pt-24 pb-10 relative z-10 w-full">
                 <div className="max-w-7xl mx-auto px-8 w-full">
                     {page !== 3 ? (
-                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-start">
                             {/* LEFT: Wizard Form */}
                             <div className="z-20">
                                 <AnimatePresence mode="wait">
@@ -252,7 +300,7 @@ function AppV2() {
                             </div>
 
                             {/* RIGHT: Phone Studio */}
-                            <div className="flex justify-center lg:block origin-top lg:scale-[0.85]">
+                            <div className="flex justify-center lg:block origin-top lg:scale-[0.78] xl:scale-[0.86]">
                                 <PhoneStudio
                                     companyName={companyName}
                                     brandData={brandData}
@@ -351,7 +399,7 @@ function PhoneStudio({ companyName, brandData }) {
 
 
     return (
-        <div className="relative mx-auto w-full max-w-[380px] perspective-1000">
+        <div className="relative mx-auto w-full max-w-[340px] perspective-1000">
 
             <motion.div
                 ref={phoneContainerRef}
@@ -611,15 +659,17 @@ function RCSChatScene({ companyName, brandData }) {
 // --- WIZARD PAGES ---
 
 function Page1({ companyName, setCompanyName, onNext }) {
+    const hasProfanity = hasBlockedBrandTerm(companyName);
+
     return (
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} transition={{ duration: 0.4 }} className="space-y-8 max-w-lg">
             <div className="h-6"></div>
             <div className="space-y-6">
                 <h1 className="text-5xl font-bold text-[#000000] leading-[1.15] tracking-tight">
-                    Accelerate your conversions through Google Search
-                    <span className="inline-block align-middle ml-3 px-2.5 py-0.5 rounded-full bg-blue-100 text-blue-700 text-xs font-bold tracking-wide border border-blue-200">BETA</span>
+                    Turn Google Brand Searches into Qualified Leads
+                    <span className="inline-block align-middle ml-3 px-2.5 py-0.5 rounded-full bg-blue-100 text-blue-700 text-xs font-bold tracking-wide border border-blue-200">Limited Access</span>
                 </h1>
-                <p className="text-lg text-[#666666] leading-relaxed">Turn high intent Google Search moments into a conversation that qualifies, personalizes, and converts, one tap from search to chat through RCS.</p>
+                <p className="text-lg text-[#666666] leading-relaxed">Turn brand search clicks into leads on chat - no extra ad or setup spend</p>
             </div>
             <div className="space-y-4 pt-2">
                 <label className="block">
@@ -630,18 +680,21 @@ function Page1({ companyName, setCompanyName, onNext }) {
                         className="w-full p-4 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#BD2949]/20 focus:border-[#BD2949] transition-all shadow-sm text-base text-[#000000] placeholder:text-[#999999] focus:outline-none"
                         value={companyName}
                         onChange={(e) => setCompanyName(e.target.value)}
-                        onKeyPress={(e) => e.key === 'Enter' && companyName.trim() && onNext()}
+                        onKeyPress={(e) => e.key === 'Enter' && companyName.trim() && !hasProfanity && onNext()}
                         autoFocus
                     />
                 </label>
+                {hasProfanity ? (
+                    <p className="text-xs text-[#BD2949]">Please enter a clean business/brand name.</p>
+                ) : null}
                 <div>
-                    <button onClick={onNext} disabled={!companyName.trim()} className="w-full py-4 bg-[#BD2949] text-white rounded-lg font-semibold text-base hover:bg-[#A02340] disabled:bg-[#F1F3F4] disabled:text-[#999999] disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2 shadow-md hover:shadow-lg hover:-translate-y-0.5 active:translate-y-0 disabled:hover:translate-y-0 disabled:shadow-none">
-                        Watch the agent work <ArrowRight className="w-5 h-5" />
+                    <button onClick={onNext} disabled={!companyName.trim() || hasProfanity} className="w-full py-4 bg-[#BD2949] text-white rounded-lg font-semibold text-base hover:bg-[#A02340] disabled:bg-[#F1F3F4] disabled:text-[#999999] disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2 shadow-md hover:shadow-lg hover:-translate-y-0.5 active:translate-y-0 disabled:hover:translate-y-0 disabled:shadow-none">
+                        Enable it for free <ArrowRight className="w-5 h-5" />
                     </button>
                     <p className="text-xs text-gray-400 text-center mt-3">Instant preview. No signup.</p>
                 </div>
             </div>
-            <p className="text-xs text-[#666666]">By submitting, you agree to Engati’s Terms of Use. <a href="https://www.engati.ai/termsofuse" className="text-[#BD2949] hover:underline ml-1 font-medium" target="_blank" rel="noreferrer">View terms</a></p>
+            <p className="text-xs text-[#666666]">By continuing, you agree to Engati’s Terms of Use. <a href="https://www.engati.ai/termsofuse" className="text-[#BD2949] hover:underline ml-1 font-medium" target="_blank" rel="noreferrer">View terms</a></p>
         </motion.div>
     );
 }
@@ -649,16 +702,32 @@ function Page1({ companyName, setCompanyName, onNext }) {
 function Page2({ onBack, onSubmit, initialForm }) {
     const [form, setForm] = useState(initialForm);
 
+    const isValidEmail = (value) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+    const isValidIndianMobileInput = (value) => {
+        const digits = String(value || '').replace(/\D/g, '');
+        return digits.length === 10;
+    };
+
     const handleContinue = () => {
         const normalizedForm = {
             fullName: form.fullName.trim(),
             email: form.email.trim(),
-            phone: form.phone.trim()
+            phone: form.phone.replace(/\D/g, '')
         };
 
         // 1. Basic Validation
         if (!normalizedForm.fullName || !normalizedForm.email || !normalizedForm.phone) {
             alert("Please fill in your contact details first.");
+            return;
+        }
+
+        if (!isValidEmail(normalizedForm.email)) {
+            alert('Please enter a valid work email address.');
+            return;
+        }
+
+        if (!isValidIndianMobileInput(normalizedForm.phone)) {
+            alert('Please enter a valid 10-digit mobile number.');
             return;
         }
 
@@ -673,8 +742,8 @@ function Page2({ onBack, onSubmit, initialForm }) {
                 <ChevronLeft className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform" /> <span className="text-sm font-medium">Back</span>
             </button>
             <div className="space-y-2">
-                <h2 className="text-4xl font-bold text-[#000000] leading-tight tracking-tight">Deploy it for your brand today!</h2>
-                <p className="text-base text-[#666666] leading-relaxed">Leave your details below and someone from Engati team will get in touch with you, at your preferred time.</p>
+                <h2 className="text-4xl font-bold text-[#000000] leading-tight tracking-tight">Enable Search-to-Chat for your brand (30 days free)</h2>
+                <p className="text-base text-[#666666] leading-relaxed">Share your details to unlock the setup flow and claim your 30-day free enablement. We’ll use this only for setup updates and access - no spam.</p>
             </div>
 
             <div className="space-y-4">
@@ -703,13 +772,16 @@ function Page2({ onBack, onSubmit, initialForm }) {
 
                 <div>
                     <label className="text-sm font-medium text-[#000000] mb-1.5 block">Phone Number</label>
-                    <input
-                        type="tel"
-                        placeholder="Please enter your 10 digit mobile number"
-                        className="w-full p-4 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#BD2949]/20 focus:border-[#BD2949] transition-all shadow-sm focus:outline-none font-medium text-[#000000]"
-                        value={form.phone}
-                        onChange={e => setForm({ ...form, phone: e.target.value })}
-                    />
+                    <div className="flex items-stretch rounded-xl border border-gray-200 bg-white shadow-sm overflow-hidden focus-within:ring-2 focus-within:ring-[#BD2949]/20 focus-within:border-[#BD2949]">
+                        <span className="px-4 flex items-center text-[#344054] font-semibold bg-[#F9FAFB] border-r border-gray-200">+91</span>
+                        <input
+                            type="tel"
+                            placeholder="Enter 10-digit mobile number"
+                            className="w-full p-4 bg-white transition-all focus:outline-none font-medium text-[#000000]"
+                            value={form.phone}
+                            onChange={e => setForm({ ...form, phone: e.target.value.replace(/\D/g, '').slice(0, 10) })}
+                        />
+                    </div>
                 </div>
 
                 <div>
@@ -719,9 +791,9 @@ function Page2({ onBack, onSubmit, initialForm }) {
                         className="w-full py-4 bg-[#BD2949] hover:bg-[#a3223e] text-white rounded-xl font-semibold shadow-lg shadow-red-900/10 transition-all mt-6 flex items-center justify-center gap-2"
                     >
                         <ArrowRight className="w-5 h-5" />
-                        Continue to RCS Setup
+                        Claim free setup
                     </button>
-                    <p className="text-xs text-gray-400 text-center mt-3">We will log your details and open RCS setup in step 3</p>
+                    <p className="text-xs text-gray-400 text-center mt-3">Takes 2 minutes. Your details are used only for enablement and updates.</p>
                 </div>
             </div>
         </motion.div >

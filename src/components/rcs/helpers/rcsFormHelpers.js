@@ -1,9 +1,9 @@
 export const REQUIRED_FIELD_KEYS = [
   'businessName',
   'shortDescription',
-  'phoneNumber',
-  'websiteUrl',
-  'emailAddress',
+  'callValue',
+  'websiteValue',
+  'emailValue',
 ];
 
 export const UPLOAD_SPECS = [
@@ -38,20 +38,22 @@ export function sanitizeValue(value) {
 
 export function createInitialRcsForm(prefill = {}) {
   const businessName = sanitizeValue(prefill.brandName);
-  const emailAddress = sanitizeValue(prefill.email);
-  const phoneNumber = sanitizeValue(prefill.phone);
+  const emailValue = sanitizeValue(prefill.email);
+  const callValue = sanitizeValue(prefill.phone);
 
   return {
     businessName,
     shortDescription: '',
     logoUrl: '',
     headerImageUrl: '',
-    phoneNumber,
-    websiteUrl: '',
-    emailAddress,
+    callLabel: 'Call',
+    callValue,
+    websiteLabel: 'Website',
+    websiteValue: '',
+    emailLabel: 'Email',
+    emailValue,
     infoSummary: '',
-    supportStartTime: '09:00',
-    supportEndTime: '18:00',
+    supportHours: 'Mon-Fri, 9 AM - 6 PM',
     supportAddress: '',
     notificationEnabled: false,
     blockReportSpamEnabled: false,
@@ -78,28 +80,4 @@ export function getActionLabel(value, fallbackLabel) {
 
 export function getEnabledOptions(form) {
   return OPTION_TOGGLE_FIELDS.filter((option) => Boolean(form[option.key])).map((option) => option.label);
-}
-
-export function formatTimeWithAmPm(timeValue) {
-  if (!timeValue) {
-    return '--:--';
-  }
-
-  const normalized = String(timeValue).trim();
-
-  if (/am|pm/i.test(normalized)) {
-    return normalized.toUpperCase();
-  }
-
-  const [hourPart, minutePart = '00'] = normalized.split(':');
-  const hours24 = Number(hourPart);
-
-  if (Number.isNaN(hours24)) {
-    return normalized;
-  }
-
-  const period = hours24 >= 12 ? 'PM' : 'AM';
-  const hours12 = hours24 % 12 || 12;
-
-  return `${String(hours12).padStart(2, '0')}:${minutePart} ${period}`;
 }
