@@ -4,9 +4,10 @@ const ENGATI_PROXY_BASE_URL = String(import.meta.env.VITE_ENGATI_PROXY_URL || '/
   /\/$/,
   ''
 );
-const ENGATI_PAGE_ONE_URL = import.meta.env.VITE_ENGATI_PAGE_1_URL;
-const ENGATI_PAGE_TWO_URL = import.meta.env.VITE_ENGATI_PAGE_2_URL;
-const ENGATI_PAGE_THREE_URL = import.meta.env.VITE_ENGATI_PAGE_3_URL;
+
+const ENGATI_PAGE_ONE_URL = 'https://api.engati.ai/bot-api/v2.0/customer/28459/bot/8419bd588bec4048/flow/EBAE1F6090D54CC3B7689F02C04A004F';
+const ENGATI_PAGE_TWO_URL = 'https://api.engati.ai/bot-api/v2.0/customer/28459/bot/8419bd588bec4048/flow/EBAE1F6090D54CC3B7689F02C04A004F';
+const ENGATI_PAGE_THREE_URL ='https://api.engati.ai/bot-api/v2.0/customer/28459/bot/8419bd588bec4048/flow/B870866FE21F4CC08F60BAD184D26609';
 
 const SESSION_ID_STORAGE_KEY = 'engati_rcs_lead_session_id';
 
