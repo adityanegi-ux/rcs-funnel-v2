@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "proxy:server": "node server/engatiProxyServer.js",
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview"
@@ -13,7 +14,8 @@
     "@tailwindcss/postcss": "^4.1.18",
     "axios": "^1.13.5",
     "react": "^19.2.0",
-    "react-dom": "^19.2.0"
+    "react-dom": "^19.2.0",
+    "react-hook-form": "^7.71.2"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.1",

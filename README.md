@@ -1,16 +1,59 @@
-# React + Vite
+# Engati RCS Landing
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+## Secure Engati Proxy Setup
 
-Currently, two official plugins are available:
+This project now uses a backend proxy for Engati flow calls, so your Engati API key is not exposed in browser code.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+### 1. Server-side environment variables
 
-## React Compiler
+Set these where the proxy server runs:
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+- `ENGATI_API_KEY`: your real Engati API key (required)
+- `ENGATI_ALLOWED_ORIGINS`: comma-separated allowlist for CORS (optional but recommended)
+- `ENGATI_PROXY_PORT`: proxy server port (optional, default `8787`)
 
-## Expanding the ESLint configuration
+Example:
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+```bash
+export ENGATI_API_KEY="YOUR_REAL_KEY"
+export ENGATI_ALLOWED_ORIGINS="http://localhost:5173,https://your-webflow-site.webflow.io"
+export ENGATI_PROXY_PORT="8787"
+```
+
+### 2. Frontend environment variables
+
+Use this in `.env.local` for client routing:
+
+```bash
+VITE_ENGATI_PROXY_URL=/api/engati
+```
+
+For cross-domain proxy hosting, set absolute URL:
+
+```bash
+VITE_ENGATI_PROXY_URL=https://your-proxy-domain.com/api/engati
+```
+
+Do not use `VITE_ENGATI_API_KEY` anymore.
+
+### 3. Run locally
+
+Terminal 1 (proxy):
+
+```bash
+npm run proxy:server
+```
+
+Terminal 2 (frontend):
+
+```bash
+npm run dev
+```
+
+Vite is configured to proxy `/api/engati/*` to `http://localhost:8787` in local dev.
+
+### 4. Health check
+
+```bash
+curl http://localhost:8787/api/engati/health
+```

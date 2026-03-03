@@ -1,27 +1,36 @@
+/* eslint-disable no-unused-vars */
 import React, { useState, useEffect, useRef, useLayoutEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
     Search, Mic, Camera, MoreVertical, MessageCircle, ChevronRight,
     Home, User, Settings, ChevronLeft, ShieldCheck, Sparkles, Plus,
-    Wifi, Battery, ArrowRight, Calendar, Clock, CheckCircle2, Loader2, MapPin,
-    MousePointer2, ChevronDown
+    Wifi, Battery, ArrowRight, MapPin
 } from 'lucide-react';
 import axios from 'axios';
+import CreateRCSUser from './components/CreateRCSUser';
+import debounce from './utils/lodashDebounce';
+import {
+    capturePage1Journey,
+    capturePage2Journey,
+    capturePage3Journey
+} from './services/engatiJourneyApi';
 
 // --- LIVE DATA ENGINE ---
 
-const useBrandData = (companyName) => {
-    const [data, setData] = useState({
-        logo: null,
-        description: null,
-        industry: 'General',
-        sitelinks: [],
-        offer: 'Get 20% off your first query',
-        isLoading: false,
-        isLoaded: false
-    });
+const INITIAL_BRAND_DATA = {
+    logo: null,
+    description: null,
+    industry: 'General',
+    sitelinks: [],
+    offer: 'Get 20% off your first query',
+    isLoading: false,
+    isLoaded: false
+};
 
-    const timeoutRef = useRef(null);
+const useBrandData = (companyName) => {
+    const [data, setData] = useState(INITIAL_BRAND_DATA);
+    const normalizedCompanyName = companyName.trim();
+    const hasSearchableCompanyName = normalizedCompanyName.length >= 2;
 
     const getSitelinks = (industry) => {
         switch (industry) {
@@ -59,19 +68,17 @@ const useBrandData = (companyName) => {
     };
 
     useEffect(() => {
-        if (!companyName || companyName.trim().length < 2) {
-            setData(prev => ({ ...prev, isLoading: false, isLoaded: false }));
+        if (!hasSearchableCompanyName) {
             return;
         }
 
-        setData(prev => ({ ...prev, isLoading: true, isLoaded: false }));
+        let isCurrentRequest = true;
+        const cleanName = normalizedCompanyName;
 
-        if (timeoutRef.current) clearTimeout(timeoutRef.current);
+        const debouncedBrandFetch = debounce(async () => {
+            setData(prev => ({ ...prev, isLoading: true, isLoaded: false }));
 
-        // Debounce 600ms
-        timeoutRef.current = setTimeout(async () => {
             try {
-                const cleanName = companyName.trim();
                 const domain = cleanName.toLowerCase().replace(/[^a-z0-9]/g, '') + '.com';
 
                 // 1. Google Favicon API
@@ -90,6 +97,10 @@ const useBrandData = (companyName) => {
 
                 const industry = determineIndustry(cleanName, description);
 
+                if (!isCurrentRequest) {
+                    return;
+                }
+
                 setData({
                     logo: logoUrl,
                     description: description,
@@ -102,14 +113,21 @@ const useBrandData = (companyName) => {
 
             } catch (error) {
                 console.error("Fetch error", error);
-                setData(prev => ({ ...prev, isLoading: false, isLoaded: true }));
+                if (isCurrentRequest) {
+                    setData(prev => ({ ...prev, isLoading: false, isLoaded: true }));
+                }
             }
         }, 600);
 
-        return () => clearTimeout(timeoutRef.current);
-    }, [companyName]);
+        debouncedBrandFetch();
 
-    return data;
+        return () => {
+            isCurrentRequest = false;
+            debouncedBrandFetch.cancel();
+        };
+    }, [hasSearchableCompanyName, normalizedCompanyName]);
+
+    return hasSearchableCompanyName ? data : INITIAL_BRAND_DATA;
 };
 
 
@@ -118,24 +136,61 @@ const useBrandData = (companyName) => {
 function AppV2() {
     const [page, setPage] = useState(1);
     const [companyName, setCompanyName] = useState('');
+    const [leadDetails, setLeadDetails] = useState({ fullName: '', email: '', phone: '' });
 
     const brandData = useBrandData(companyName);
 
-    // Inject Calendly Scripts
-    useEffect(() => {
-        const head = document.querySelector('head');
-        const script = document.createElement('script');
-        script.setAttribute('src', 'https://assets.calendly.com/assets/external/widget.js');
-        head.appendChild(script);
+    const handlePage1Submit = () => {
+        const normalizedBrandName = companyName.trim();
+        if (!normalizedBrandName) {
+            return;
+        }
 
-        const style = document.createElement('link');
-        style.setAttribute('rel', 'stylesheet');
-        style.setAttribute('href', 'https://assets.calendly.com/assets/external/widget.css');
-        head.appendChild(style);
-    }, []);
+        capturePage1Journey({ brandName: normalizedBrandName })
+            .then((response) => {
+                console.log('[Engati Flow] Page 1 captured:', response);
+            })
+            .catch((error) => {
+                console.error('[Engati Flow] Page 1 capture failed:', error);
+            });
+
+        setPage(2);
+    };
+
+    const handlePage2Submit = (nextLeadDetails) => {
+        const normalizedBrandName = companyName.trim();
+        const stepOneTwoPayload = {
+            brandName: normalizedBrandName,
+            lead: nextLeadDetails
+        };
+
+        console.log('[RCS Demo] Section 1 + Section 2 payload:', stepOneTwoPayload);
+
+        capturePage2Journey({
+            fullName: nextLeadDetails.fullName,
+            email: nextLeadDetails.email,
+            phoneNumber: nextLeadDetails.phone
+        })
+            .then((response) => {
+                console.log('[Engati Flow] Page 2 captured:', response);
+            })
+            .catch((error) => {
+                console.error('[Engati Flow] Page 2 capture failed:', error);
+            });
+
+        setLeadDetails(nextLeadDetails);
+        setPage(3);
+    };
+
+    const handlePage3Submit = async (formValues) => {
+        console.log('[RCS Demo] Section 3 payload:', formValues);
+        const response = await capturePage3Journey({ formValues });
+        console.log('[Engati Flow] Page 3 captured:', response);
+        return response;
+    };
 
     return (
-        <div className="min-h-screen bg-[#F8F9FA] antialiased font-sans overflow-hidden relative flex flex-col">
+        <div className="min-h-screen bg-[#F8F9FA] antialiased font-sans overflow-x-hidden relative flex flex-col">
 
             {/* MESH GRADIENT */}
             <div className="fixed inset-0 overflow-hidden pointer-events-none">
@@ -149,7 +204,14 @@ function AppV2() {
             {/* Header */}
             <header className="fixed top-0 left-0 right-0 z-50 bg-white/80 backdrop-blur-md border-b border-[#DDDDDD] transition-all duration-200">
                 <div className="max-w-7xl mx-auto px-8 h-16 flex items-center">
-                    <div className="flex items-center select-none cursor-pointer pl-1" onClick={() => { setPage(1); setCompanyName(''); }}>
+                    <div
+                        className="flex items-center select-none cursor-pointer pl-1"
+                        onClick={() => {
+                            setPage(1);
+                            setCompanyName('');
+                            setLeadDetails({ fullName: '', email: '', phone: '' });
+                        }}
+                    >
                         <svg width="140" height="40" viewBox="0 0 856 247" fill="none" className="h-8 w-auto overflow-visible" xmlns="http://www.w3.org/2000/svg">
                             <path fillRule="evenodd" clipRule="evenodd" d="M110.262 153.305C109.688 145.274 108.567 138.676 108.567 132.403C108.811 128.89 109.795 125.468 111.455 122.363C114.897 115.459 118.913 108.867 121.75 102.026C124.074 96.3147 127.2 93.7389 132.045 94.869C133.216 95.1681 134.305 95.7276 135.23 96.506C136.155 97.2843 136.892 98.2614 137.387 99.3643C137.881 100.467 138.121 101.668 138.087 102.876C138.053 104.084 137.747 105.269 137.191 106.343C134.303 113.801 130.287 120.972 127.152 128.375C125.862 131.166 125.075 134.163 124.828 137.228C125.402 146.957 126.523 156.446 127.41 166.165C127.983 174.451 121.96 178.467 114.542 174.451C106.51 170.183 99.1009 165.272 91.0635 161.257C87.7668 159.668 84.0776 159.079 80.4502 159.561C71.2321 161.107 61.7951 160.748 52.7213 158.506C43.6475 156.263 35.1294 152.185 27.6927 146.523C20.256 140.861 14.0583 133.735 9.48217 125.586C4.90602 117.436 2.04845 108.434 1.08575 99.1373C-3.18251 60.155 27.4497 22.931 65.5543 21.8009C73.807 21.5656 82.0119 23.1318 89.5977 26.3904C105.919 33.5472 111.63 52.7544 104.801 71.9644C100.502 83.7613 93.3157 94.2929 83.8981 102.597C79.3086 106.613 73.8585 106.865 71.0302 103.17C67.588 98.5808 69.0222 94.3183 73.0381 90.8675C81.6435 82.8359 88.7945 73.6568 90.8025 61.6093C93.3841 48.1132 86.5342 39.2612 73.0381 38.131C47.2392 35.5494 22.0656 56.4604 17.4847 83.9546C13.4689 110.006 30.9808 137.248 56.1515 142.397C64.0854 143.912 72.2243 144.018 80.1949 142.709C86.2187 141.831 91.0549 141.831 95.9513 145.291C100.217 147.855 104.548 150.173 110.262 153.305Z" fill="#AE1536" />
                             <path d="M157.026 102.591C156.963 102.47 157.216 91.9776 157.216 91.9776C156.933 87.5715 157.125 83.1477 157.789 78.7827C159.224 67.3089 162.058 59.0104 166.395 53.8616C170.144 49.5848 174.609 45.9935 179.59 43.2483C187.696 40.0412 196.36 38.481 205.076 38.6588C212.35 38.662 219.487 40.6356 225.729 44.3698C231.779 47.8127 236.523 53.1569 239.225 59.5727C241.806 65.8489 243.241 75.8942 243.241 89.3903V140.363H230.619V93.1107C230.871 85.4447 230.39 77.7723 229.185 70.1974C228.205 64.5277 225.023 59.4754 220.333 56.142C215.744 53.2535 209.473 52.1262 200.561 52.1262C193.152 52.0871 185.922 54.3968 179.908 58.7236C173.884 63.3132 172.048 70.4499 171.128 76.5597C170.099 85.6631 169.697 94.8265 169.926 103.985V140.394H157.026V102.591Z" fill="#403F42" />
@@ -163,55 +225,57 @@ function AppV2() {
             </header>
 
             {/* Main Content - Centered */}
-            <main className="flex-1 flex items-center pt-24 pb-16 relative z-10 w-full">
+            <main className={`flex-1 flex ${page === 3 ? 'items-start' : 'items-center'} pt-24 pb-16 relative z-10 w-full`}>
                 <div className="max-w-7xl mx-auto px-8 w-full">
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
+                    {page !== 3 ? (
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
+                            {/* LEFT: Wizard Form */}
+                            <div className="z-20">
+                                <AnimatePresence mode="wait">
+                                    {page === 1 && (
+                                        <Page1
+                                            key="p1"
+                                            companyName={companyName}
+                                            setCompanyName={setCompanyName}
+                                            onNext={handlePage1Submit}
+                                        />
+                                    )}
+                                    {page === 2 && (
+                                        <Page2
+                                            key="p2"
+                                            onBack={() => setPage(1)}
+                                            initialForm={leadDetails}
+                                            onSubmit={handlePage2Submit}
+                                        />
+                                    )}
+                                </AnimatePresence>
+                            </div>
 
-                        {/* LEFT: Wizard Form */}
-                        <div className="z-20">
-                            <AnimatePresence mode="wait">
-                                {page === 1 && (
-                                    <Page1
-                                        key="p1"
-                                        companyName={companyName}
-                                        setCompanyName={setCompanyName}
-                                        onNext={() => setPage(2)}
-                                    />
-                                )}
-                                {page === 2 && (
-                                    <Page2
-                                        key="p2"
-                                        companyName={companyName}
-                                        onBack={() => setPage(1)}
-                                        onSubmit={() => setPage(3)}
-                                    />
-                                )}
-                                {page === 3 && (
-                                    <Page3
-                                        key="p3"
-                                        companyName={companyName}
-                                        onReset={() => { setCompanyName(''); setPage(1); }}
-                                    />
-                                )}
-                            </AnimatePresence>
+                            {/* RIGHT: Phone Studio */}
+                            <div className="flex justify-center lg:block origin-top lg:scale-[0.85]">
+                                <PhoneStudio
+                                    companyName={companyName}
+                                    brandData={brandData}
+                                />
+                            </div>
                         </div>
-
-                        {/* RIGHT: Phone Studio */}
-                        <div className="flex justify-center lg:block origin-top lg:scale-[0.85]">
-                            <PhoneStudio
+                    ) : (
+                        <AnimatePresence mode="wait">
+                            <Page3
+                                key="p3"
                                 companyName={companyName}
-                                brandData={brandData}
+                                leadDetails={leadDetails}
+                                onBack={() => setPage(2)}
+                                onSubmitFinal={handlePage3Submit}
                             />
-                        </div>
-
-                    </div>
+                        </AnimatePresence>
+                    )}
                 </div>
             </main>
         </div>
     );
 }
 
-// --- DYNAMIC ISLAND ---
 const DynamicIsland = ({ active }) => (
     <motion.div
         initial={{ width: 100, height: 28 }}
@@ -219,7 +283,6 @@ const DynamicIsland = ({ active }) => (
         transition={{ type: "spring", stiffness: 120, damping: 15 }}
         className="absolute top-7 left-1/2 -translate-x-1/2 bg-black rounded-[20px] z-50 flex items-center justify-center overflow-hidden shadow-sm"
     >
-        {/* Sensor Cutouts */}
         <div className="flex gap-2 opacity-40">
             <div className="w-3 h-3 rounded-full bg-[#1a1a1a]" />
             <div className="w-1.5 h-1.5 rounded-full bg-[#1a1a1a]" />
@@ -227,48 +290,55 @@ const DynamicIsland = ({ active }) => (
     </motion.div>
 );
 
-// --- PHONE STUDIO CONTAINER ---
 
 function PhoneStudio({ companyName, brandData }) {
-    const [scene, setScene] = useState('google');
-    const [cursorState, setCursorState] = useState('hidden'); // 'hidden', 'waiting', 'moving'
+    const normalizedCompanyName = companyName.trim();
+    const [rcsReadyBrand, setRcsReadyBrand] = useState('');
+    const [cursorState, setCursorState] = useState({ brandKey: '', value: 'hidden' }); // value: 'hidden' | 'waiting' | 'moving'
 
-    // Refs for Target Lock
     const phoneContainerRef = useRef(null);
     const chatButtonRef = useRef(null);
     const [cursorTarget, setCursorTarget] = useState({ x: 0, y: 0 });
     const [isClicking, setIsClicking] = useState(false);
+    const isRcsScene =
+        Boolean(normalizedCompanyName) &&
+        !brandData.isLoading &&
+        rcsReadyBrand === normalizedCompanyName;
+    const shouldAnimateToRcs =
+        Boolean(normalizedCompanyName) &&
+        !brandData.isLoading &&
+        brandData.isLoaded &&
+        !isRcsScene;
+    const activeScene = isRcsScene ? 'rcs' : 'google';
+    const activeCursorState =
+        shouldAnimateToRcs && cursorState.brandKey === normalizedCompanyName
+            ? cursorState.value
+            : 'hidden';
 
-    // Automation Sequence
     useEffect(() => {
-        if (!companyName.trim()) {
-            setScene('google');
-            setCursorState('hidden');
+        if (!shouldAnimateToRcs) {
             return;
         }
 
-        if (brandData.isLoading) {
-            setScene('google');
-            setCursorState('hidden');
-        }
+        const targetBrand = normalizedCompanyName;
+        let t1;
+        let t2;
 
-        if (brandData.isLoaded && scene === 'google') {
-            let t1, t2;
-            // 1. Wait 2s
-            t1 = setTimeout(() => {
-                setCursorState('waiting');
-                // 2. Move (To button)
-                t2 = setTimeout(() => {
-                    setCursorState('moving');
-                }, 100);
-            }, 2000);
-            return () => { clearTimeout(t1); clearTimeout(t2); };
-        }
-    }, [brandData, companyName, scene]);
+        t1 = setTimeout(() => {
+            setCursorState({ brandKey: targetBrand, value: 'waiting' });
+            t2 = setTimeout(() => {
+                setCursorState({ brandKey: targetBrand, value: 'moving' });
+            }, 100);
+        }, 2000);
 
-    // Calculate Target Coordinates
+        return () => {
+            clearTimeout(t1);
+            clearTimeout(t2);
+        };
+    }, [normalizedCompanyName, shouldAnimateToRcs]);
+
     useLayoutEffect(() => {
-        if (cursorState === 'moving' && chatButtonRef.current && phoneContainerRef.current) {
+        if (activeCursorState === 'moving' && chatButtonRef.current && phoneContainerRef.current) {
             const btnRect = chatButtonRef.current.getBoundingClientRect();
             const containerRect = phoneContainerRef.current.getBoundingClientRect();
 
@@ -277,13 +347,12 @@ function PhoneStudio({ companyName, brandData }) {
                 y: btnRect.top - containerRect.top + (btnRect.height / 2)
             });
         }
-    }, [cursorState]);
+    }, [activeCursorState]);
 
 
     return (
         <div className="relative mx-auto w-full max-w-[380px] perspective-1000">
 
-            {/* Phone Chassis */}
             <motion.div
                 ref={phoneContainerRef}
                 initial={{ y: 20, opacity: 0 }}
@@ -291,15 +360,11 @@ function PhoneStudio({ companyName, brandData }) {
                 transition={{ duration: 0.6, ease: "easeOut" }}
                 className="relative bg-[#1F1F1F] rounded-[56px] p-3 shadow-2xl ring-1 ring-white/10"
             >
-                {/* Dynamic Island Notch */}
-                <DynamicIsland active={scene === 'rcs'} />
-
-                {/* Screen */}
+                <DynamicIsland active={activeScene === 'rcs'} />
                 <div
                     className="relative bg-white rounded-[44px] overflow-hidden flex flex-col w-full h-full backface-hidden"
                     style={{ aspectRatio: '9/19.5' }}
                 >
-                    {/* Status Bar */}
                     <div className="h-12 bg-white flex items-center justify-between px-8 text-xs font-medium z-30 flex-shrink-0 select-none relative">
                         <span className="text-[#000000]">9:41</span>
                         <div className="flex items-center gap-1.5">
@@ -307,15 +372,11 @@ function PhoneStudio({ companyName, brandData }) {
                             <Battery className="w-5 h-5 text-[#000000]" />
                         </div>
                     </div>
-
-                    {/* Scene Container */}
                     <div className="flex-1 overflow-hidden relative z-10">
                         <AnimatePresence mode="wait">
-                            {scene === 'google' && <GoogleSearchScene key="google" companyName={companyName} brandData={brandData} chatButtonRef={chatButtonRef} />}
-                            {scene === 'rcs' && <RCSChatScene key="rcs" companyName={companyName} brandData={brandData} />}
+                            {activeScene === 'google' && <GoogleSearchScene key="google" companyName={companyName} brandData={brandData} chatButtonRef={chatButtonRef} />}
+                            {activeScene === 'rcs' && <RCSChatScene key="rcs" companyName={companyName} brandData={brandData} />}
                         </AnimatePresence>
-
-                        {/* Analyzing State */}
                         <AnimatePresence>
                             {brandData.isLoading && (
                                 <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="absolute inset-0 bg-white/90 backdrop-blur-sm z-50 flex flex-col items-center justify-center text-center p-6 space-y-4">
@@ -330,10 +391,10 @@ function PhoneStudio({ companyName, brandData }) {
 
                         {/* Cursor Overlay - Ref Based */}
                         <AnimatePresence>
-                            {cursorState !== 'hidden' && (
+                            {activeCursorState !== 'hidden' && (
                                 <motion.div
                                     initial={{ top: '110%', left: '90%', opacity: 0 }}
-                                    animate={cursorState === 'moving' ? {
+                                    animate={activeCursorState === 'moving' ? {
                                         top: cursorTarget.y,
                                         left: cursorTarget.x,
                                         opacity: 1
@@ -346,12 +407,12 @@ function PhoneStudio({ companyName, brandData }) {
                                         type: "spring", stiffness: 100, damping: 20
                                     }}
                                     onAnimationComplete={() => {
-                                        if (cursorState === 'moving') {
+                                        if (activeCursorState === 'moving') {
                                             setIsClicking(true);
                                             setTimeout(() => {
                                                 setIsClicking(false);
-                                                setScene('rcs');
-                                                setCursorState('hidden');
+                                                setRcsReadyBrand(normalizedCompanyName);
+                                                setCursorState({ brandKey: normalizedCompanyName, value: 'hidden' });
                                             }, 200);
                                         }
                                     }}
@@ -434,11 +495,6 @@ function RCSChatScene({ companyName, brandData }) {
     const [showBotMessage, setShowBotMessage] = useState(false);
 
     useEffect(() => {
-        // Reset and start sequence
-        setShowUserMessage(false);
-        setShowTyping(false);
-        setShowBotMessage(false);
-
         const t1 = setTimeout(() => setShowUserMessage(true), 400);
         const t2 = setTimeout(() => setShowTyping(true), 1000);
         const t3 = setTimeout(() => {
@@ -590,35 +646,24 @@ function Page1({ companyName, setCompanyName, onNext }) {
     );
 }
 
-// --- GOOGLE SHEETS BACKEND ---
-// FUTURE: Replace SCRIPT_URL with Salesforce Web-to-Lead endpoint
-const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbx7JxrZRuuXwpdNHtozxkvBnXWGeO7M-5i_TRaXJAIDN2FvEIllVodSXmIxIdj__NRW/exec";
+function Page2({ onBack, onSubmit, initialForm }) {
+    const [form, setForm] = useState(initialForm);
 
-function Page2({ companyName, onBack }) {
-    const [form, setForm] = useState({ fullName: '', email: '', phone: '' });
+    const handleContinue = () => {
+        const normalizedForm = {
+            fullName: form.fullName.trim(),
+            email: form.email.trim(),
+            phone: form.phone.trim()
+        };
 
-    const handleCalendlyBooking = () => {
         // 1. Basic Validation
-        if (!form.fullName || !form.email || !form.phone) {
+        if (!normalizedForm.fullName || !normalizedForm.email || !normalizedForm.phone) {
             alert("Please fill in your contact details first.");
             return;
         }
 
-        // 2. Open Calendly Popup
-        if (window.Calendly) {
-            window.Calendly.initPopupWidget({
-                url: 'https://calendly.com/demos-engati/google-rcs',
-                prefill: {
-                    name: form.fullName,
-                    email: form.email,
-                    customAnswers: {
-                        a1: form.phone
-                    }
-                }
-            });
-        } else {
-            // Fallback
-            window.open('https://calendly.com/demos-engati/google-rcs', '_blank');
+        if (onSubmit) {
+            onSubmit(normalizedForm);
         }
     };
 
@@ -670,26 +715,33 @@ function Page2({ companyName, onBack }) {
                 <div>
                     <button
                         type="button"
-                        onClick={handleCalendlyBooking}
+                        onClick={handleContinue}
                         className="w-full py-4 bg-[#BD2949] hover:bg-[#a3223e] text-white rounded-xl font-semibold shadow-lg shadow-red-900/10 transition-all mt-6 flex items-center justify-center gap-2"
                     >
-                        <Calendar className="w-5 h-5" />
-                        Book Your Slot
+                        <ArrowRight className="w-5 h-5" />
+                        Continue to RCS Setup
                     </button>
-                    <p className="text-xs text-gray-400 text-center mt-3">Someone from the team will get in touch with you</p>
+                    <p className="text-xs text-gray-400 text-center mt-3">We will log your details and open RCS setup in step 3</p>
                 </div>
             </div>
         </motion.div >
     );
 }
-
-
-function Page3({ companyName, onReset }) {
+function Page3({ companyName, leadDetails, onBack, onSubmitFinal }) {
     return (
-        <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="space-y-8 text-center py-12">
-            <div className="flex justify-center"><motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ delay: 0.2, type: 'spring' }} className="w-24 h-24 rounded-full bg-[#E8F5E9] flex items-center justify-center"><CheckCircle2 className="w-12 h-12 text-[#34A853]" /></motion.div></div>
-            <div className="space-y-4"><h2 className="text-4xl font-bold text-[#000000] tracking-tight">Submitted</h2><p className="text-lg text-[#666666] max-w-md mx-auto leading-relaxed">Someone from the team will get in touch with you. Check your inbox for the details.</p></div>
-            <div className="pt-4"><button onClick={() => window.location.reload()} className="text-[#BD2949] font-semibold hover:underline text-base">Resubmit the form</button></div>
+        <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.4 }} className="space-y-5 w-full">
+            <button onClick={onBack} className="flex items-center gap-2 text-[#666666] hover:text-[#000000] transition-colors group">
+                <ChevronLeft className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform" /> <span className="text-sm font-medium">Back</span>
+            </button>
+            <CreateRCSUser
+                prefill={{
+                    fullName: leadDetails.fullName,
+                    brandName: companyName,
+                    email: leadDetails.email,
+                    phone: leadDetails.phone
+                }}
+                onSubmitFinal={onSubmitFinal}
+            />
         </motion.div>
     );
 }
@@ -707,57 +759,5 @@ function NavIcon({ icon, active }) {
     const Icon = icons[icon];
     return <div className="flex flex-col items-center gap-1 cursor-pointer"><div className={`p-0.5 rounded-full`}><Icon className="w-6 h-6" style={{ color: active ? '#1A73E8' : '#5F6368' }} /></div></div>;
 }
-
-// --- HELPER COMPONENTS ---
-
-function CustomSelect({ label, value, options, onChange, placeholder }) {
-    const [isOpen, setIsOpen] = useState(false);
-    const ref = useRef(null);
-
-    useEffect(() => {
-        function handleClickOutside(event) {
-            if (ref.current && !ref.current.contains(event.target)) setIsOpen(false);
-        }
-        document.addEventListener("mousedown", handleClickOutside);
-        return () => document.removeEventListener("mousedown", handleClickOutside);
-    }, []);
-
-    return (
-        <div className="relative" ref={ref}>
-            <label className="text-sm font-medium text-[#000000] mb-1.5 block">{label}</label>
-            <div
-                onClick={() => setIsOpen(!isOpen)}
-                className={`w-full p-4 rounded-xl border ${isOpen ? 'border-[#BD2949] ring-2 ring-[#BD2949]/20' : 'border-gray-200'} bg-white text-[#000000] flex items-center justify-between cursor-pointer transition-all shadow-sm hover:border-[#BD2949]`}
-            >
-                <span className={`font-medium ${value ? 'text-black' : 'text-[#999999]'}`}>{value || placeholder || `Select ${label}`}</span>
-                <ChevronDown className={`w-5 h-5 text-[#666666] transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
-            </div>
-
-            <AnimatePresence>
-                {isOpen && (
-                    <motion.div
-                        initial={{ opacity: 0, y: -10, scale: 0.98 }}
-                        animate={{ opacity: 1, y: 0, scale: 1 }}
-                        exit={{ opacity: 0, y: -10, scale: 0.98 }}
-                        transition={{ duration: 0.15 }}
-                        className="absolute top-full left-0 right-0 mt-2 bg-white rounded-lg shadow-xl border border-[#DDDDDD] z-50 overflow-hidden"
-                    >
-                        {options.map((opt) => (
-                            <div
-                                key={opt}
-                                className={`px-4 py-3 cursor-pointer text-sm font-medium transition-colors ${value === opt ? 'bg-[#BD2949]/5 text-[#BD2949]' : 'text-[#000000] hover:bg-[#F8F9FA]'}`}
-                                onClick={() => { onChange(opt); setIsOpen(false); }}
-                            >
-                                {opt}
-                            </div>
-                        ))}
-                    </motion.div>
-                )}
-            </AnimatePresence>
-        </div>
-    );
-}
-
-
 
 export default AppV2;
