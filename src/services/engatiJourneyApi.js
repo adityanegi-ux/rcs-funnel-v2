@@ -4,9 +4,9 @@ const ENGATI_PROXY_BASE_URL = String(import.meta.env.VITE_ENGATI_PROXY_URL || '/
   /\/$/,
   ''
 );
-const ENGATI_PAGE_ONE_URL = import.meta.env.VITE_ENGATI_PAGE_1_URL || `${ENGATI_PROXY_BASE_URL}/page-1`;
-const ENGATI_PAGE_TWO_URL = import.meta.env.VITE_ENGATI_PAGE_2_URL || `${ENGATI_PROXY_BASE_URL}/page-2`;
-const ENGATI_PAGE_THREE_URL = import.meta.env.VITE_ENGATI_PAGE_3_URL || `${ENGATI_PROXY_BASE_URL}/page-3`;
+const ENGATI_PAGE_ONE_URL = import.meta.env.VITE_ENGATI_PAGE_1_URL;
+const ENGATI_PAGE_TWO_URL = import.meta.env.VITE_ENGATI_PAGE_2_URL;
+const ENGATI_PAGE_THREE_URL = import.meta.env.VITE_ENGATI_PAGE_3_URL;
 
 const SESSION_ID_STORAGE_KEY = 'engati_rcs_lead_session_id';
 
