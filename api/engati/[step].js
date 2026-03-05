@@ -139,11 +139,11 @@ export default async function handler(req, res) {
   try {
     let upstream = await callEngati(flowUrl, payload, apiKey);
 
-    if (upstream.status === 401) {
+    if (upstream.status === 401 || upstream.status >= 500) {
       const alternativeFlowUrl = getAlternativeFlowUrl(flowUrl);
       if (alternativeFlowUrl) {
         const fallbackUpstream = await callEngati(alternativeFlowUrl, payload, apiKey);
-        if (fallbackUpstream.status !== 401) {
+        if (fallbackUpstream.status < upstream.status || fallbackUpstream.status < 500) {
           upstream = fallbackUpstream;
         }
       }

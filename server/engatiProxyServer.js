@@ -1,7 +1,7 @@
 import { createServer } from 'node:http';
 import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { ENGATI_FLOW_ENDPOINTS } from './engatiFlowEndpoints.js';
+import { ENGATI_FLOW_ENDPOINTS, ENGATI_UPLOAD_ENDPOINT } from './engatiFlowEndpoints.js';
 
 const ROUTE_TO_FLOW = {
   '/api/engati/journey-start': ENGATI_FLOW_ENDPOINTS.journeyStart,
@@ -180,11 +180,11 @@ async function proxyToEngati(flowUrl, payload) {
 
     let upstream = await callEngati(flowUrl);
 
-    if (upstream.status === 401) {
+    if (upstream.status === 401 || upstream.status >= 500) {
       const alternativeFlowUrl = getAlternativeFlowUrl(flowUrl);
       if (alternativeFlowUrl) {
         const fallbackUpstream = await callEngati(alternativeFlowUrl);
-        if (fallbackUpstream.status !== 401) {
+        if (fallbackUpstream.status < upstream.status || fallbackUpstream.status < 500) {
           upstream = fallbackUpstream;
         }
       }
@@ -208,6 +208,136 @@ async function proxyToEngati(flowUrl, payload) {
   }
 }
 
+function parseDataUrl(dataUrl) {
+  const [metaPart, dataPart] = String(dataUrl || '').split(',');
+  if (!metaPart || !dataPart) {
+    throw new Error('invalid_image_data');
+  }
+
+  const mimeMatch = metaPart.match(/^data:(.*?);base64$/i);
+  const mimeType = mimeMatch?.[1] || 'image/png';
+  const bytes = Buffer.from(dataPart, 'base64');
+
+  return { bytes, mimeType };
+}
+
+function getCandidateUploadUrls(primaryUrl) {
+  const candidates = [primaryUrl];
+
+  if (primaryUrl.includes('://api.engati.ai/')) {
+    candidates.push(primaryUrl.replace('://api.engati.ai/', '://devapi.engati.ai/'));
+    candidates.push(primaryUrl.replace('://api.engati.ai/', '://dev.engati.ai/'));
+  } else if (primaryUrl.includes('://devapi.engati.ai/')) {
+    candidates.push(primaryUrl.replace('://devapi.engati.ai/', '://api.engati.ai/'));
+    candidates.push(primaryUrl.replace('://devapi.engati.ai/', '://dev.engati.ai/'));
+  } else if (primaryUrl.includes('://dev.engati.ai/')) {
+    candidates.push(primaryUrl.replace('://dev.engati.ai/', '://api.engati.ai/'));
+    candidates.push(primaryUrl.replace('://dev.engati.ai/', '://devapi.engati.ai/'));
+  }
+
+  return Array.from(new Set(candidates));
+}
+
+function extractUploadedUrl(responseBody) {
+  const candidates = [
+    responseBody?.url,
+    responseBody?.image_url,
+    responseBody?.responseObject?.url,
+    responseBody?.responseObject?.image_url,
+    responseBody?.data?.url,
+    responseBody?.data?.image_url,
+    responseBody?.result?.url,
+  ];
+
+  return candidates.find((value) => typeof value === 'string' && value.trim().length > 0) || '';
+}
+
+async function proxyUploadToEngati({ dataUrl, fileName = 'image.png', fieldName = 'file' }) {
+  const apiKey = process.env.ENGATI_API_KEY;
+
+  if (!apiKey) {
+    return {
+      status: 500,
+      body: {
+        error: 'missing_engati_api_key',
+        message: 'Set ENGATI_API_KEY on the proxy server environment.',
+      },
+    };
+  }
+
+  let parsedImage;
+  try {
+    parsedImage = parseDataUrl(dataUrl);
+  } catch {
+    return {
+      status: 400,
+      body: {
+        error: 'invalid_image_data',
+      },
+    };
+  }
+
+  const candidateUrls = getCandidateUploadUrls(ENGATI_UPLOAD_ENDPOINT);
+
+  try {
+    let upstream = null;
+
+    for (const targetUrl of candidateUrls) {
+      const formData = new FormData();
+      formData.append(
+        fieldName,
+        new Blob([parsedImage.bytes], { type: parsedImage.mimeType }),
+        fileName
+      );
+
+      const response = await fetch(targetUrl, {
+        method: 'POST',
+        headers: {
+          Authorization: `Basic ${apiKey}`,
+        },
+        body: formData,
+      });
+
+      const responseText = await response.text();
+      let parsedBody;
+
+      try {
+        parsedBody = responseText ? JSON.parse(responseText) : {};
+      } catch {
+        parsedBody = { raw: responseText };
+      }
+
+      upstream = {
+        status: response.status,
+        body: parsedBody,
+        url: targetUrl,
+      };
+
+      if (response.status < 500) {
+        break;
+      }
+    }
+
+    const uploadedUrl = extractUploadedUrl(upstream?.body);
+    return {
+      status: upstream?.status || 500,
+      body: {
+        ...(upstream?.body || {}),
+        ...(uploadedUrl ? { url: uploadedUrl } : {}),
+        _engati_upload_url: upstream?.url || '',
+      },
+    };
+  } catch (error) {
+    return {
+      status: 502,
+      body: {
+        error: 'engati_upload_failed',
+        message: error instanceof Error ? error.message : 'Unknown upload error',
+      },
+    };
+  }
+}
+
 const server = createServer(async (req, res) => {
   const url = new URL(req.url || '/', 'http://localhost');
   const pathname = url.pathname;
@@ -223,6 +353,43 @@ const server = createServer(async (req, res) => {
       configuredOrigins: ALLOWED_ORIGINS.length === 0 ? ['*'] : ALLOWED_ORIGINS,
       hasApiKey: Boolean(process.env.ENGATI_API_KEY),
     });
+    return;
+  }
+
+  if (pathname === '/api/engati/media-upload') {
+    if (!setCorsHeaders(req, res)) {
+      sendJson(res, 403, { error: 'origin_not_allowed' });
+      return;
+    }
+
+    if (req.method === 'OPTIONS') {
+      res.statusCode = 204;
+      res.end();
+      return;
+    }
+
+    if (req.method !== 'POST') {
+      sendJson(res, 405, { error: 'method_not_allowed' });
+      return;
+    }
+
+    let body;
+    try {
+      body = await readJsonBody(req);
+    } catch (error) {
+      sendJson(res, 400, {
+        error: 'invalid_json_body',
+        message: error instanceof Error ? error.message : 'Invalid request payload',
+      });
+      return;
+    }
+
+    const uploadResult = await proxyUploadToEngati({
+      dataUrl: body?.dataUrl,
+      fileName: body?.fileName || 'image.png',
+      fieldName: body?.fieldName || 'file',
+    });
+    sendJson(res, uploadResult.status, uploadResult.body);
     return;
   }
 

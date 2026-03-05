@@ -6,3 +6,5 @@ export const ENGATI_FLOW_ENDPOINTS = {
   rcsProfileSubmit:
     'https://api.engati.ai/bot-api/v2.0/customer/28459/bot/8419bd588bec4048/flow/B870866FE21F4CC08F60BAD184D26609',
 };
+
+export const ENGATI_UPLOAD_ENDPOINT = 'https://api.engati.ai/portal/upload';
