@@ -1,13 +1,9 @@
 import axios from 'axios';
 
-const ENGATI_PROXY_BASE_URL = String(import.meta.env.VITE_ENGATI_PROXY_URL || '/api/engati').replace(
-  /\/$/,
-  ''
-);
-
-const ENGATI_PAGE_ONE_URL = 'https://api.engati.ai/bot-api/v2.0/customer/28459/bot/8419bd588bec4048/flow/EBAE1F6090D54CC3B7689F02C04A004F';
-const ENGATI_PAGE_TWO_URL = 'https://api.engati.ai/bot-api/v2.0/customer/28459/bot/8419bd588bec4048/flow/EBAE1F6090D54CC3B7689F02C04A004F';
-const ENGATI_PAGE_THREE_URL ='https://api.engati.ai/bot-api/v2.0/customer/28459/bot/8419bd588bec4048/flow/B870866FE21F4CC08F60BAD184D26609';
+const ENGATI_PROXY_BASE_URL = '/api/engati';
+const ENGATI_JOURNEY_START_URL = `${ENGATI_PROXY_BASE_URL}/journey-start`;
+const ENGATI_IDENTITY_CAPTURE_URL = `${ENGATI_PROXY_BASE_URL}/identity-capture`;
+const ENGATI_RCS_PROFILE_SUBMIT_URL = `${ENGATI_PROXY_BASE_URL}/rcs-profile-submit`;
 
 const SESSION_ID_STORAGE_KEY = 'engati_rcs_lead_session_id';
 
@@ -110,7 +106,7 @@ export async function capturePage1Journey({ brandName }) {
     p1_timestamp_utc: getUtcIsoTimestamp(),
   };
 
-  return postEngatiFlow(ENGATI_PAGE_ONE_URL, payload);
+  return postEngatiFlow(ENGATI_JOURNEY_START_URL, payload);
 }
 
 export async function capturePage2Journey({ fullName, email, phoneNumber }) {
@@ -123,7 +119,7 @@ export async function capturePage2Journey({ fullName, email, phoneNumber }) {
     p2_timestamp_utc: getUtcIsoTimestamp(),
   };
 
-  return postEngatiFlow(ENGATI_PAGE_TWO_URL, payload);
+  return postEngatiFlow(ENGATI_IDENTITY_CAPTURE_URL, payload);
 }
 
 export async function capturePage3Journey({ formValues }) {
@@ -161,5 +157,5 @@ export async function capturePage3Journey({ formValues }) {
     ),
   };
 
-  return postEngatiFlow(ENGATI_PAGE_THREE_URL, payload);
+  return postEngatiFlow(ENGATI_RCS_PROFILE_SUBMIT_URL, payload);
 }
