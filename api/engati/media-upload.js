@@ -100,6 +100,7 @@ async function callUpload(url, body, apiKey) {
 
   const response = await fetch(url, {
     method: 'POST',
+    redirect: 'manual',
     headers: {
       Authorization: `Basic ${apiKey}`,
     },
@@ -119,6 +120,8 @@ async function callUpload(url, body, apiKey) {
     status: response.status,
     body: parsedResponse,
     url,
+    contentType: response.headers.get('content-type') || '',
+    location: response.headers.get('location') || '',
   };
 }
 
@@ -169,22 +172,42 @@ export default async function handler(req, res) {
   try {
     const candidateUrls = getCandidateUploadUrls(ENGATI_UPLOAD_ENDPOINT);
     let upstream = null;
+    let uploadedUrl = '';
+    const attempts = [];
 
     for (const targetUrl of candidateUrls) {
       const attempt = await callUpload(targetUrl, uploadBody, apiKey);
       upstream = attempt;
-      if (attempt.status >= 200 && attempt.status < 300) {
+      const attemptUploadedUrl = extractUploadedUrl(attempt.body);
+      attempts.push({
+        url: attempt.url,
+        status: attempt.status,
+        contentType: attempt.contentType,
+        location: attempt.location,
+        hasUploadedUrl: Boolean(attemptUploadedUrl),
+      });
+
+      if (attemptUploadedUrl) {
+        uploadedUrl = attemptUploadedUrl;
         break;
       }
     }
 
-    const uploadedUrl = extractUploadedUrl(upstream?.body);
     if (uploadedUrl) {
       upstream.body = { ...upstream.body, url: uploadedUrl };
+      res.setHeader('x-engati-upload-url', upstream?.url || '');
+      return res.status(upstream?.status || 200).json(upstream?.body || { url: uploadedUrl });
     }
 
+    const fallbackStatus =
+      upstream?.status && upstream.status >= 400 ? upstream.status : 502;
     res.setHeader('x-engati-upload-url', upstream?.url || '');
-    return res.status(upstream?.status || 500).json(upstream?.body || { error: 'upload_failed' });
+    return res.status(fallbackStatus).json({
+      error: 'upload_url_missing',
+      message: 'Upload endpoint responded but no media URL was returned.',
+      attempts,
+      upstreamBody: upstream?.body || {},
+    });
   } catch (error) {
     return res.status(502).json({
       error: 'engati_upload_failed',

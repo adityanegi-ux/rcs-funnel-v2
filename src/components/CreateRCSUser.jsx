@@ -12,8 +12,8 @@ import {
 function SectionCard({ title, subtitle, children }) {
   return (
     <section className='rounded-3xl border border-[#D7DEE7] bg-[#F2F4F7] p-5'>
-      <h3 className='text-4xl font-semibold text-[#111827]'>{title}</h3>
-      {subtitle ? <p className='text-base text-[#475467] mt-2'>{subtitle}</p> : null}
+      <h3 className='text-2xl font-semibold text-[#111827]'>{title}</h3>
+      {subtitle ? <p className='text-sm text-[#475467] mt-2'>{subtitle}</p> : null}
       <div className='mt-5 space-y-4'>{children}</div>
     </section>
   );
@@ -125,7 +125,7 @@ function CreateRCSUser({ prefill, onSubmitFinal }) {
   };
 
   return (
-    <div className='space-y-6'>
+    <div className='space-y-6 pb-40'>
       <div className='grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_420px] gap-6 items-start'>
         <div className='space-y-4 xl:max-h-[calc(100vh-120px)] xl:overflow-y-auto xl:pr-2'>
           <SectionCard
@@ -297,7 +297,7 @@ function CreateRCSUser({ prefill, onSubmitFinal }) {
           </div>
         </div>
 
-        <div className='xl:sticky xl:top-20 xl:self-start h-fit'>
+        <div className='xl:sticky xl:top-20 pl-20 xl:self-start h-fit scale-0.8'>
           <WatchedPhonePreview control={control} />
         </div>
       </div>

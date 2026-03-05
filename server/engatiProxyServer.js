@@ -292,6 +292,7 @@ async function proxyUploadToEngati({ dataUrl, fileName = 'image.png', fieldName 
 
       const response = await fetch(targetUrl, {
         method: 'POST',
+        redirect: 'manual',
         headers: {
           Authorization: `Basic ${apiKey}`,
         },
@@ -311,19 +312,41 @@ async function proxyUploadToEngati({ dataUrl, fileName = 'image.png', fieldName 
         status: response.status,
         body: parsedBody,
         url: targetUrl,
+        contentType: response.headers.get('content-type') || '',
+        location: response.headers.get('location') || '',
       };
-
-      if (response.status >= 200 && response.status < 300) {
+      const uploadedUrl = extractUploadedUrl(parsedBody);
+      if (uploadedUrl) {
+        upstream.body = {
+          ...upstream.body,
+          url: uploadedUrl,
+        };
         break;
       }
     }
 
     const uploadedUrl = extractUploadedUrl(upstream?.body);
+    if (!uploadedUrl) {
+      const fallbackStatus =
+        upstream?.status && upstream.status >= 400 ? upstream.status : 502;
+      return {
+        status: fallbackStatus,
+        body: {
+          error: 'upload_url_missing',
+          message: 'Upload endpoint responded but no media URL was returned.',
+          _engati_upload_url: upstream?.url || '',
+          _engati_upload_content_type: upstream?.contentType || '',
+          _engati_upload_location: upstream?.location || '',
+          upstreamBody: upstream?.body || {},
+        },
+      };
+    }
+
     return {
       status: upstream?.status || 500,
       body: {
         ...(upstream?.body || {}),
-        ...(uploadedUrl ? { url: uploadedUrl } : {}),
+        url: uploadedUrl,
         _engati_upload_url: upstream?.url || '',
       },
     };

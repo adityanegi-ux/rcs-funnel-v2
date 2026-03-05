@@ -103,17 +103,33 @@ export async function uploadDataUrlToCdn(
     }),
   });
 
-  const responseBody = await response.json().catch(() => ({}));
+  const rawBody = await response.text();
+  let responseBody = {};
+
+  try {
+    responseBody = rawBody ? JSON.parse(rawBody) : {};
+  } catch {
+    responseBody = { raw: rawBody };
+  }
+
+  const looksLikeHtml = /<!doctype html|<html/i.test(rawBody);
 
   if (!response.ok) {
     const debugUrl = responseBody?._engati_upload_url ? ` upstream: ${responseBody._engati_upload_url}` : '';
-    throw new Error(`CDN upload failed (${response.status}).${debugUrl}`);
+    const debugLocation = responseBody?._engati_upload_location
+      ? ` location: ${responseBody._engati_upload_location}`
+      : '';
+    const htmlHint = looksLikeHtml
+      ? ' Upstream returned HTML (likely redirect/login/wrong upload endpoint).'
+      : '';
+    throw new Error(`CDN upload failed (${response.status}).${debugUrl}${debugLocation}${htmlHint}`);
   }
 
   const uploadedUrl = extractUploadedUrl(responseBody);
 
   if (!uploadedUrl) {
-    throw new Error('CDN upload succeeded but no URL was returned.');
+    const htmlHint = looksLikeHtml ? ' Upload endpoint returned HTML instead of a media URL.' : '';
+    throw new Error(`CDN upload succeeded but no URL was returned.${htmlHint}`);
   }
 
   return uploadedUrl;
