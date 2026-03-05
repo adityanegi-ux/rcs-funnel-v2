@@ -68,13 +68,13 @@ function getCandidateUploadUrls(primaryUrl) {
 
   if (primaryUrl.includes('://api.engati.ai/')) {
     candidates.push(primaryUrl.replace('://api.engati.ai/', '://devapi.engati.ai/'));
-    candidates.push(primaryUrl.replace('://api.engati.ai/', '://dev.engati.ai/'));
+    candidates.push(primaryUrl.replace('://api.engati.ai/', '://agents.engati.ai/'));
   } else if (primaryUrl.includes('://devapi.engati.ai/')) {
     candidates.push(primaryUrl.replace('://devapi.engati.ai/', '://api.engati.ai/'));
-    candidates.push(primaryUrl.replace('://devapi.engati.ai/', '://dev.engati.ai/'));
-  } else if (primaryUrl.includes('://dev.engati.ai/')) {
-    candidates.push(primaryUrl.replace('://dev.engati.ai/', '://api.engati.ai/'));
-    candidates.push(primaryUrl.replace('://dev.engati.ai/', '://devapi.engati.ai/'));
+    candidates.push(primaryUrl.replace('://devapi.engati.ai/', '://agents.engati.ai/'));
+  } else if (primaryUrl.includes('://agents.engati.ai/')) {
+    candidates.push(primaryUrl.replace('://agents.engati.ai/', '://api.engati.ai/'));
+    candidates.push(primaryUrl.replace('://agents.engati.ai/', '://devapi.engati.ai/'));
   }
 
   return Array.from(new Set(candidates));
@@ -173,7 +173,7 @@ export default async function handler(req, res) {
     for (const targetUrl of candidateUrls) {
       const attempt = await callUpload(targetUrl, uploadBody, apiKey);
       upstream = attempt;
-      if (attempt.status < 500) {
+      if (attempt.status >= 200 && attempt.status < 300) {
         break;
       }
     }

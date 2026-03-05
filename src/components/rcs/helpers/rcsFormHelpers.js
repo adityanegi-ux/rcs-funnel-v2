@@ -50,8 +50,6 @@ export function createInitialRcsForm(prefill = {}) {
     emailLabel: 'Email',
     emailValue,
     infoSummary: '',
-    supportHours: 'Mon-Fri, 9 AM - 6 PM',
-    supportAddress: '',
     notificationEnabled: true,
     blockReportSpamEnabled: true,
     privacyPolicyUrl: '',

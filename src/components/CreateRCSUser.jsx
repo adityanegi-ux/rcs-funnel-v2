@@ -160,15 +160,10 @@ function CreateRCSUser({ prefill, onSubmitFinal }) {
             </div>
 
             <div className='space-y-2'>
-              <FieldLabel>Logo URL (PNG)</FieldLabel>
+              <FieldLabel>Logo URL</FieldLabel>
               <InputWithActionButton
-                placeholder='https://cdn.engati.ai/assets/logo.png'
-                registerProps={register('logoUrl', {
-                  pattern: {
-                    value: /^https:\/\/.+\.png$/i,
-                    message: 'Use a valid https://...png URL',
-                  },
-                })}
+                placeholder='Paste logo image URL'
+                registerProps={register('logoUrl')}
                 onAction={() => {
                   logUploadIntent('logoUrl');
                   setActiveUploadKey('logoUrl');
@@ -178,15 +173,10 @@ function CreateRCSUser({ prefill, onSubmitFinal }) {
             </div>
 
             <div className='space-y-2'>
-              <FieldLabel>Header Image URL (PNG)</FieldLabel>
+              <FieldLabel>Header Image URL</FieldLabel>
               <InputWithActionButton
-                placeholder='https://cdn.engati.ai/assets/header.png'
-                registerProps={register('headerImageUrl', {
-                  pattern: {
-                    value: /^https:\/\/.+\.png$/i,
-                    message: 'Use a valid https://...png URL',
-                  },
-                })}
+                placeholder='Paste header image URL'
+                registerProps={register('headerImageUrl')}
                 onAction={() => {
                   logUploadIntent('headerImageUrl');
                   setActiveUploadKey('headerImageUrl');
@@ -212,27 +202,6 @@ function CreateRCSUser({ prefill, onSubmitFinal }) {
                 />
                 <ValidationError message={errors.callValue?.message} />
               </div>
-            </div>
-
-            <div className='grid grid-cols-1 md:grid-cols-2 gap-4 items-start'>
-              <div className='space-y-2'>
-                <FieldLabel required>Brand Website</FieldLabel>
-                <TextInput
-                  type='url'
-                  placeholder='https://engati.ai'
-                  registerProps={register('websiteValue', {
-                    required: 'Website Value is required',
-                    pattern: {
-                      value: /^https:\/\/.+/i,
-                      message: 'Use a valid https:// URL',
-                    },
-                  })}
-                />
-                <ValidationError message={errors.websiteValue?.message} />
-              </div>
-            </div>
-
-            <div className='grid grid-cols-1 md:grid-cols-2 gap-4 items-start'>
               <div className='space-y-2'>
                 <FieldLabel required>Support email</FieldLabel>
                 <TextInput
@@ -249,6 +218,24 @@ function CreateRCSUser({ prefill, onSubmitFinal }) {
                 <ValidationError message={errors.emailValue?.message} />
               </div>
             </div>
+
+            <div className='gap-4 items-start'>
+              <div className='space-y-2'>
+                <FieldLabel required>Brand Website</FieldLabel>
+                <TextInput
+                  type='url'
+                  placeholder='https://engati.ai'
+                  registerProps={register('websiteValue', {
+                    required: 'Website Value is required',
+                    pattern: {
+                      value: /^https:\/\/.+/i,
+                      message: 'Use a valid https:// URL',
+                    },
+                  })}
+                />
+                <ValidationError message={errors.websiteValue?.message} />
+              </div>
+            </div>
           </SectionCard>
 
           <SectionCard title='Info tab (optional but recommended)'>
@@ -258,22 +245,6 @@ function CreateRCSUser({ prefill, onSubmitFinal }) {
                 placeholder='We help users order groceries and track delivery.'
                 {...register('infoSummary')}
                 className='w-full min-h-28 rounded-2xl border border-[#C5CED8] bg-white p-4 text-[#111827] text-base placeholder:text-[#667085] outline-none focus:ring-2 focus:ring-[#BE244A]/20 focus:border-[#BE244A] transition-all resize-none'
-              />
-            </div>
-
-            <div className='space-y-2'>
-              <FieldLabel>Support Hours</FieldLabel>
-              <TextInput
-                placeholder='Mon-Fri, 9 AM - 6 PM'
-                registerProps={register('supportHours')}
-              />
-            </div>
-
-            <div className='space-y-2'>
-              <FieldLabel>Support Address</FieldLabel>
-              <TextInput
-                placeholder='2nd Floor, MG Road, Bengaluru 560001'
-                registerProps={register('supportAddress')}
               />
             </div>
           </SectionCard>

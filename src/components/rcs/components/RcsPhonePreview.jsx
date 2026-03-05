@@ -8,6 +8,7 @@ import {
 } from '../helpers/rcsFormHelpers';
 
 const engatiLogo = 'https://s3.ap-south-1.amazonaws.com/file-upload-public/prod/117384/ENGATI_PUBLIC/139971_03032026_123838_Screenshot_2026_03_03_at_18.08.26.png-tReBC.png'
+const STATIC_SUPPORT_HOURS = 'Mon-Fri, 9 AM - 6 PM';
 
 function PreviewAction({ icon, label }) {
   const Icon = icon;
@@ -114,14 +115,12 @@ function RcsPhonePreview({ form }) {
                       </p>
                       <div className='h-px bg-[#E2E8F0]' />
                       <p className='text-xs text-[#334155]'>
-                        Support hours: {form.supportHours?.trim() || '--'}
+                        Support hours: {STATIC_SUPPORT_HOURS}
                       </p>
-                      {form.supportAddress?.trim() ? (
-                        <>
-                          <div className='h-px bg-[#E2E8F0]' />
-                          <p className='text-xs text-[#334155] leading-relaxed'>{form.supportAddress}</p>
-                        </>
-                      ) : null}
+                      <div className='h-px bg-[#E2E8F0]' />
+                      <p className='text-xs text-[#334155] leading-relaxed'>
+                        Support email: {form.emailValue?.trim() || '--'}
+                      </p>
                     </div>
                   ) : enabledOptions.length > 0 ? (
                     <div className='space-y-2'>

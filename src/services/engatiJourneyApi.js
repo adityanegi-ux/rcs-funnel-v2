@@ -4,6 +4,7 @@ const ENGATI_PROXY_BASE_URL = '/api/engati';
 const ENGATI_JOURNEY_START_URL = `${ENGATI_PROXY_BASE_URL}/journey-start`;
 const ENGATI_IDENTITY_CAPTURE_URL = `${ENGATI_PROXY_BASE_URL}/identity-capture`;
 const ENGATI_RCS_PROFILE_SUBMIT_URL = `${ENGATI_PROXY_BASE_URL}/rcs-profile-submit`;
+const STATIC_SUPPORT_HOURS = 'Mon-Fri, 9 AM - 6 PM';
 
 const SESSION_ID_STORAGE_KEY = 'engati_rcs_lead_session_id';
 
@@ -71,22 +72,6 @@ function normalizeIndianMobileNo(inputValue) {
   return digits;
 }
 
-function resolveSupportHours(formValues = {}) {
-  const directSupportHours = String(formValues.supportHours || '').trim();
-  if (directSupportHours) {
-    return directSupportHours;
-  }
-
-  const supportStartTime = String(formValues.supportStartTime || '').trim();
-  const supportEndTime = String(formValues.supportEndTime || '').trim();
-
-  if (supportStartTime && supportEndTime) {
-    return `${supportStartTime} - ${supportEndTime}`;
-  }
-
-  return supportStartTime || supportEndTime || '';
-}
-
 async function postEngatiFlow(flowUrl, payload) {
   const response = await axios.post(flowUrl, payload, {
     headers: {
@@ -128,23 +113,15 @@ export async function capturePage3Journey({ formValues }) {
   const payload = {
     ...buildCommonPayload('page_3', sessionId),
     p3_timestamp_utc: getUtcIsoTimestamp(),
-    brand_name: formValues.brand_name || formValues.businessName || '',
     short_description: formValues.shortDescription || '',
     logo_url_png: formValues.logoUrl || '',
     header_image_url_png: formValues.headerImageUrl || '',
-    call_label: formValues.callLabel || 'Call',
     call_value: normalizedCallValue,
-    website_label: formValues.websiteLabel || 'Website',
     website_value: formValues.websiteValue || formValues.websiteUrl || '',
-    email_label: formValues.emailLabel || 'Email',
     email_value: formValues.emailValue || formValues.emailAddress || '',
     info_summary: formValues.infoSummary || '',
-    support_hours: resolveSupportHours(formValues),
-    support_address: formValues.supportAddress || '',
-    opt_notification: Boolean(formValues.notificationEnabled ?? formValues.opt_notification ?? true),
-    opt_block_report_spam: Boolean(
-      formValues.blockReportSpamEnabled ?? formValues.opt_block_report_spam ?? true
-    ),
+    support_hours: STATIC_SUPPORT_HOURS,
+    support_address: formValues.emailValue || formValues.emailAddress || '',
     opt_view_privacy_policy: Boolean(
       String(formValues.privacyPolicyUrl || '').trim() ||
         formValues.privacyPolicyEnabled ||

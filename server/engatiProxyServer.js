@@ -226,13 +226,13 @@ function getCandidateUploadUrls(primaryUrl) {
 
   if (primaryUrl.includes('://api.engati.ai/')) {
     candidates.push(primaryUrl.replace('://api.engati.ai/', '://devapi.engati.ai/'));
-    candidates.push(primaryUrl.replace('://api.engati.ai/', '://dev.engati.ai/'));
+    candidates.push(primaryUrl.replace('://api.engati.ai/', '://agents.engati.ai/'));
   } else if (primaryUrl.includes('://devapi.engati.ai/')) {
     candidates.push(primaryUrl.replace('://devapi.engati.ai/', '://api.engati.ai/'));
-    candidates.push(primaryUrl.replace('://devapi.engati.ai/', '://dev.engati.ai/'));
-  } else if (primaryUrl.includes('://dev.engati.ai/')) {
-    candidates.push(primaryUrl.replace('://dev.engati.ai/', '://api.engati.ai/'));
-    candidates.push(primaryUrl.replace('://dev.engati.ai/', '://devapi.engati.ai/'));
+    candidates.push(primaryUrl.replace('://devapi.engati.ai/', '://agents.engati.ai/'));
+  } else if (primaryUrl.includes('://agents.engati.ai/')) {
+    candidates.push(primaryUrl.replace('://agents.engati.ai/', '://api.engati.ai/'));
+    candidates.push(primaryUrl.replace('://agents.engati.ai/', '://devapi.engati.ai/'));
   }
 
   return Array.from(new Set(candidates));
@@ -313,7 +313,7 @@ async function proxyUploadToEngati({ dataUrl, fileName = 'image.png', fieldName 
         url: targetUrl,
       };
 
-      if (response.status < 500) {
+      if (response.status >= 200 && response.status < 300) {
         break;
       }
     }
