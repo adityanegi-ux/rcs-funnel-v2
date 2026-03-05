@@ -1,12 +1,13 @@
 import { useMemo, useState } from 'react';
 import { Check, ChevronLeft, EllipsisVertical, Globe, Mail, Phone } from 'lucide-react';
-import engatiLogo from '../../../assets/engatiLogo.png';
 
 import {
   getActionLabel,
   getEnabledOptions,
   getSubmissionReadiness,
 } from '../helpers/rcsFormHelpers';
+
+const engatiLogo = 'https://s3.ap-south-1.amazonaws.com/file-upload-public/prod/117384/ENGATI_PUBLIC/139971_03032026_123838_Screenshot_2026_03_03_at_18.08.26.png-tReBC.png'
 
 function PreviewAction({ icon, label }) {
   const Icon = icon;
