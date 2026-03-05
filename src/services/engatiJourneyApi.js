@@ -98,10 +98,8 @@ export async function capturePage2Journey({ fullName, email, phoneNumber }) {
   const sessionId = getOrCreateLeadSessionId();
   const payload = {
     ...buildCommonPayload('page_2', sessionId),
-    user: {
-      user_name: fullName || '',
-      email: email || '',
-    },
+    user_name: fullName || '',
+    email: email || '',
     p2_mobile_e164_no_plus: normalizeIndianMobileNo(phoneNumber),
     p2_timestamp_utc: getUtcIsoTimestamp(),
   };
