@@ -89,7 +89,7 @@ function ImageUploadCropper({ spec, value, onChange, onDone }) {
     <div className='space-y-4'>
       <div className='rounded-xl border border-[#D0D5DD] bg-white p-4'>
         <h4 className='text-base font-semibold text-[#111827]'>{spec.title}</h4>
-        <p className='text-sm text-[#475467] mt-1'>
+        <p className='text-xs text-[#667085] mt-1'>
           Minimum: {spec.minWidth}x{spec.minHeight} | Output: {spec.outputWidth}x{spec.outputHeight}
         </p>
 
@@ -103,7 +103,7 @@ function ImageUploadCropper({ spec, value, onChange, onDone }) {
           Upload Image
         </label>
 
-        {error ? <p className='text-sm text-[#B42318] mt-3'>{error}</p> : null}
+        {error ? <p className='text-xs text-[#B42318] mt-2'>{error}</p> : null}
 
         {value ? (
           <div className='mt-4 rounded-lg border border-[#EAECF0] bg-[#F9FAFB] p-2'>
@@ -125,73 +125,7 @@ function ImageUploadCropper({ spec, value, onChange, onDone }) {
             </div>
           </div>
 
-          <div className='space-y-3'>
-            <label className='block text-sm font-medium text-[#344054]'>
-              Zoom
-              <input
-                type='range'
-                min='1'
-                max='3'
-                step='0.1'
-                value={cropState.zoom}
-                onChange={(event) =>
-                  setCropState((previous) =>
-                    previous
-                      ? {
-                          ...previous,
-                          zoom: Number(event.target.value),
-                        }
-                      : previous
-                  )
-                }
-                className='w-full mt-1'
-              />
-            </label>
-
-            <label className='block text-sm font-medium text-[#344054]'>
-              Horizontal
-              <input
-                type='range'
-                min='-1'
-                max='1'
-                step='0.01'
-                value={cropState.offsetX}
-                onChange={(event) =>
-                  setCropState((previous) =>
-                    previous
-                      ? {
-                          ...previous,
-                          offsetX: Number(event.target.value),
-                        }
-                      : previous
-                  )
-                }
-                className='w-full mt-1'
-              />
-            </label>
-
-            <label className='block text-sm font-medium text-[#344054]'>
-              Vertical
-              <input
-                type='range'
-                min='-1'
-                max='1'
-                step='0.01'
-                value={cropState.offsetY}
-                onChange={(event) =>
-                  setCropState((previous) =>
-                    previous
-                      ? {
-                          ...previous,
-                          offsetY: Number(event.target.value),
-                        }
-                      : previous
-                  )
-                }
-                className='w-full mt-1'
-              />
-            </label>
-          </div>
+          <p className='text-xs text-[#667085]'>Auto-center crop will be used for this image.</p>
 
           <div className='flex items-center justify-end gap-2'>
             <button

@@ -171,7 +171,6 @@ const useBrandData = (companyName, shouldFetchPreview) => {
     return hasSearchableCompanyName ? data : INITIAL_BRAND_DATA;
 };
 
-
 // --- MAIN APP COMPONENT ---
 
 function AppV2() {
@@ -179,6 +178,7 @@ function AppV2() {
     const [companyName, setCompanyName] = useState('');
     const [isPreviewActivated, setIsPreviewActivated] = useState(false);
     const [leadDetails, setLeadDetails] = useState({ fullName: '', email: '', phone: '' });
+    const [rcsTransitionTrigger, setRcsTransitionTrigger] = useState({ brandKey: '', nonce: 0 });
 
     const brandData = useBrandData(companyName, isPreviewActivated);
 
@@ -194,6 +194,7 @@ function AppV2() {
         }
 
         setIsPreviewActivated(true);
+        setRcsTransitionTrigger({ brandKey: normalizedBrandName, nonce: Date.now() });
 
         capturePage1Journey({ brandName: normalizedBrandName })
             .then((response) => {
@@ -260,6 +261,7 @@ function AppV2() {
                             setCompanyName('');
                             setIsPreviewActivated(false);
                             setLeadDetails({ fullName: '', email: '', phone: '' });
+                            setRcsTransitionTrigger({ brandKey: '', nonce: 0 });
                         }}
                     >
                         <img src={engatiLogo} alt="Engati Logo" className="w-32 h-12" />
@@ -299,6 +301,7 @@ function AppV2() {
                                 <PhoneStudio
                                     companyName={companyName}
                                     brandData={brandData}
+                                    rcsTransitionTrigger={rcsTransitionTrigger}
                                 />
                             </div>
                         </div>
@@ -334,11 +337,10 @@ const DynamicIsland = ({ active }) => (
 );
 
 
-function PhoneStudio({ companyName, brandData }) {
+function PhoneStudio({ companyName, brandData, rcsTransitionTrigger }) {
     const normalizedCompanyName = companyName.trim();
     const [rcsReadyBrand, setRcsReadyBrand] = useState('');
-    const [cursorState, setCursorState] = useState({ brandKey: '', value: 'hidden' }); // value: 'hidden' | 'waiting' | 'moving'
-    const [rcsTransitionTrigger, setRcsTransitionTrigger] = useState({ brandKey: '', nonce: 0 });
+    const [cursorState, setCursorState] = useState({ brandKey: '', value: 'hidden' });
 
     const phoneContainerRef = useRef(null);
     const chatButtonRef = useRef(null);
@@ -361,18 +363,6 @@ function PhoneStudio({ companyName, brandData }) {
         shouldAnimateToRcs && cursorState.brandKey === normalizedCompanyName
             ? cursorState.value
             : 'hidden';
-
-    const handleOpenRcsChat = () => {
-        if (!normalizedCompanyName || brandData.isLoading || !brandData.isLoaded || isRcsScene) {
-            return;
-        }
-
-        if (cursorState.brandKey === normalizedCompanyName && cursorState.value !== 'hidden') {
-            return;
-        }
-
-        setRcsTransitionTrigger({ brandKey: normalizedCompanyName, nonce: Date.now() });
-    };
 
     useEffect(() => {
         if (!shouldAnimateToRcs) {
@@ -437,7 +427,6 @@ function PhoneStudio({ companyName, brandData }) {
                                     key="google"
                                     companyName={companyName}
                                     brandData={brandData}
-                                    onChatButtonClick={handleOpenRcsChat}
                                     chatButtonRef={chatButtonRef}
                                 />
                             )}
@@ -478,7 +467,6 @@ function PhoneStudio({ companyName, brandData }) {
                                                 setIsClicking(false);
                                                 setRcsReadyBrand(normalizedCompanyName);
                                                 setCursorState({ brandKey: normalizedCompanyName, value: 'hidden' });
-                                                setRcsTransitionTrigger({ brandKey: '', nonce: 0 });
                                             }, 200);
                                         }
                                     }}
@@ -510,7 +498,7 @@ function PhoneStudio({ companyName, brandData }) {
 
 // --- SCENES ---
 
-function GoogleSearchScene({ companyName, brandData, onChatButtonClick, chatButtonRef }) {
+function GoogleSearchScene({ companyName, brandData, chatButtonRef }) {
     const brandName = companyName || 'Your Brand';
     const brandUrl = brandName.toLowerCase().replace(/[^a-z0-9]/g, '') + '.com';
 
@@ -539,7 +527,6 @@ function GoogleSearchScene({ companyName, brandData, onChatButtonClick, chatButt
                         ref={chatButtonRef}
                         type="button"
                         whileTap={{ scale: 0.95 }}
-                        onClick={onChatButtonClick}
                         className="w-full bg-white border border-[#DADCE0] rounded-lg py-3 px-4 flex items-center gap-3 hover:bg-[#F8F9FA] transition-colors shadow-sm mb-4 group relative overflow-hidden"
                     >
                         <div className="w-9 h-9 rounded-full bg-[#1A73E8] flex items-center justify-center flex-shrink-0 z-10"><MessageCircle className="w-5 h-5 text-white" /></div>
