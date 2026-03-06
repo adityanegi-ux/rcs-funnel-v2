@@ -83,23 +83,23 @@ function SubmissionSuccessModal({ isOpen, onClose }) {
         className='w-full max-w-3xl rounded-2xl overflow-hidden bg-white border border-[#E4E7EC] shadow-2xl'
         onClick={(event) => event.stopPropagation()}
       >
-        <div className='relative bg-gradient-to-r from-[#BE244A] to-[#8E1A37] px-6 py-10 flex justify-center'>
+        <div className='relative bg-gradient-to-r from-[#BE244A] to-[#8E1A37] px-6 py-8 flex justify-center'>
           <button
             type='button'
-            className='absolute top-4 right-4 h-9 w-9 rounded-full bg-white/10 text-white hover:bg-white/20 hover:cursor-pointer transition-colors flex items-center justify-center'
+            className='absolute top-3 right-3 h-8 w-8 rounded-full bg-white/10 text-white hover:bg-white/20 hover:cursor-pointer transition-colors flex items-center justify-center'
             onClick={onClose}
             aria-label='Close success modal'
           >
-            <X className='w-5 h-5' />
+            <X className='w-4 h-4' />
           </button>
-          <div className='h-24 w-24 rounded-full border-4 border-white flex items-center justify-center'>
-            <Check className='w-12 h-12 text-white' strokeWidth={3} />
+          <div className='h-20 w-20 rounded-full border-[3px] border-white flex items-center justify-center'>
+            <Check className='w-8 h-8 text-white' strokeWidth={2.75} />
           </div>
         </div>
 
-        <div className='px-6 py-10 text-center'>
-          <h3 className='text-5xl font-semibold text-[#101828]'>Great!</h3>
-          <p className='mt-4 text-xl text-[#344054]'>
+        <div className='px-6 py-8 text-center'>
+          <h3 className='text-3xl font-semibold text-[#101828]'>Great!</h3>
+          <p className='mt-3 text-base text-[#344054]'>
             Your RCS profile has been submitted successfully.
           </p>
 
@@ -107,10 +107,10 @@ function SubmissionSuccessModal({ isOpen, onClose }) {
             href='https://engati.ai/'
             target='_blank'
             rel='noopener noreferrer'
-            className='mt-8 inline-flex h-14 px-8 rounded-full bg-[#BE244A] text-white text-xl font-semibold items-center gap-3 hover:bg-[#A91F42] hover:cursor-pointer transition-colors'
+            className='mt-6 inline-flex h-11 px-6 rounded-full bg-[#BE244A] text-white text-base font-semibold items-center gap-2 hover:bg-[#A91F42] hover:cursor-pointer transition-colors'
           >
             Visit engati.ai
-            <ArrowRight className='w-6 h-6' />
+            <ArrowRight className='w-4 h-4' />
           </a>
         </div>
       </div>
