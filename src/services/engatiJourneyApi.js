@@ -99,7 +99,7 @@ export async function capturePage2Journey({ fullName, email, phoneNumber }) {
   const payload = {
     ...buildCommonPayload('page_2', sessionId),
     'user.user_name': fullName || '',
-    'user.email': email || '',
+    email: email || '',
     'user.phone_no': normalizeIndianMobileNo(phoneNumber),
     'user.channel': 'web',
     p2_timestamp_utc: getUtcIsoTimestamp(),
