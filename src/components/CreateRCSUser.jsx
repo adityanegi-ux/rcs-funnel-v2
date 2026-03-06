@@ -177,7 +177,7 @@ function CreateRCSUser({ prefill, onSubmitFinal }) {
   };
 
   return (
-    <div className='space-y-6 pb-40'>
+    <div className='space-y-6'>
       <div className='grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_420px] gap-6 items-start'>
         <div className='space-y-4 xl:max-h-[calc(100vh-120px)] xl:overflow-y-auto xl:pr-2'>
           <SectionCard
