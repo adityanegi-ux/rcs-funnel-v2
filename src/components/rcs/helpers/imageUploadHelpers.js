@@ -72,65 +72,15 @@ export function cropImageDataUrl({
   });
 }
 
-function extractUploadedUrl(responseBody) {
-  const candidates = [
-    responseBody?.url,
-    responseBody?.image_url,
-    responseBody?.responseObject?.url,
-    responseBody?.responseObject?.image_url,
-    responseBody?.data?.url,
-    responseBody?.data?.image_url,
-    responseBody?.result?.url,
-  ];
-
-  return candidates.find((value) => typeof value === 'string' && value.trim().length > 0) || '';
-}
-
-export async function uploadDataUrlToCdn(
-  dataUrl,
-  { fileName = 'image.png', fieldName = 'file' } = {}
-) {
-  const uploadUrl = '/api/engati/media-upload';
-  const response = await fetch(uploadUrl, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      dataUrl,
-      fileName,
-      fieldName,
-    }),
-  });
-
-  const rawBody = await response.text();
-  let responseBody = {};
-
-  try {
-    responseBody = rawBody ? JSON.parse(rawBody) : {};
-  } catch {
-    responseBody = { raw: rawBody };
+export function downloadDataUrlFile(dataUrl, fileName = 'image.png') {
+  if (!dataUrl) {
+    return;
   }
 
-  const looksLikeHtml = /<!doctype html|<html/i.test(rawBody);
-
-  if (!response.ok) {
-    const debugUrl = responseBody?._engati_upload_url ? ` upstream: ${responseBody._engati_upload_url}` : '';
-    const debugLocation = responseBody?._engati_upload_location
-      ? ` location: ${responseBody._engati_upload_location}`
-      : '';
-    const htmlHint = looksLikeHtml
-      ? ' Upstream returned HTML (likely redirect/login/wrong upload endpoint).'
-      : '';
-    throw new Error(`CDN upload failed (${response.status}).${debugUrl}${debugLocation}${htmlHint}`);
-  }
-
-  const uploadedUrl = extractUploadedUrl(responseBody);
-
-  if (!uploadedUrl) {
-    const htmlHint = looksLikeHtml ? ' Upload endpoint returned HTML instead of a media URL.' : '';
-    throw new Error(`CDN upload succeeded but no URL was returned.${htmlHint}`);
-  }
-
-  return uploadedUrl;
+  const link = document.createElement('a');
+  link.href = dataUrl;
+  link.download = fileName;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
 }

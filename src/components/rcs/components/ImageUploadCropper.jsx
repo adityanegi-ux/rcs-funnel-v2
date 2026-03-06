@@ -2,16 +2,16 @@ import { useMemo, useState } from 'react';
 
 import {
   cropImageDataUrl,
+  downloadDataUrlFile,
   getImageDimensions,
   readFileAsDataUrl,
-  uploadDataUrlToCdn,
   validateImageDimensions,
 } from '../helpers/imageUploadHelpers';
 
 function ImageUploadCropper({ spec, value, onChange, onDone }) {
   const [cropState, setCropState] = useState(null);
   const [error, setError] = useState('');
-  const [isUploading, setIsUploading] = useState(false);
+  const [isApplying, setIsApplying] = useState(false);
 
   const previewStyle = useMemo(() => {
     if (!cropState) {
@@ -57,12 +57,12 @@ function ImageUploadCropper({ spec, value, onChange, onDone }) {
   };
 
   const applyCrop = async () => {
-    if (!cropState || isUploading) {
+    if (!cropState || isApplying) {
       return;
     }
 
     try {
-      setIsUploading(true);
+      setIsApplying(true);
       const croppedDataUrl = await cropImageDataUrl({
         source: cropState.source,
         outputWidth: spec.outputWidth,
@@ -72,16 +72,14 @@ function ImageUploadCropper({ spec, value, onChange, onDone }) {
         offsetY: cropState.offsetY,
       });
 
-      const uploadedUrl = await uploadDataUrlToCdn(croppedDataUrl, {
-        fileName: `${spec.key || 'image'}-${Date.now()}.png`,
-      });
-      onChange(uploadedUrl);
+      // Keep the cropped image on the client as a data URL (no internal API upload).
+      onChange(croppedDataUrl);
       setCropState(null);
       onDone?.();
     } catch (cropError) {
       setError(cropError instanceof Error ? cropError.message : 'Unable to apply crop.');
     } finally {
-      setIsUploading(false);
+      setIsApplying(false);
     }
   };
 
@@ -108,6 +106,13 @@ function ImageUploadCropper({ spec, value, onChange, onDone }) {
         {value ? (
           <div className='mt-4 rounded-lg border border-[#EAECF0] bg-[#F9FAFB] p-2'>
             <img src={value} alt={`${spec.title} preview`} className='w-full rounded-md object-contain max-h-32' />
+            <button
+              type='button'
+              className='mt-2 h-9 px-3 rounded-lg border border-[#C5CED8] text-xs font-semibold text-[#344054] hover:bg-white hover:cursor-pointer transition-colors'
+              onClick={() => downloadDataUrlFile(value, `${spec.key || 'image'}.png`)}
+            >
+              Save image
+            </button>
           </div>
         ) : null}
       </div>
@@ -137,11 +142,11 @@ function ImageUploadCropper({ spec, value, onChange, onDone }) {
             </button>
             <button
               type='button'
-              disabled={isUploading}
+              disabled={isApplying}
               className='h-10 px-4 rounded-lg bg-[#BE244A] text-white text-sm font-semibold hover:bg-[#A91F42] transition-colors'
               onClick={applyCrop}
             >
-              {isUploading ? 'Uploading...' : 'Apply Crop'}
+              {isApplying ? 'Saving...' : 'Apply Crop'}
             </button>
           </div>
         </div>

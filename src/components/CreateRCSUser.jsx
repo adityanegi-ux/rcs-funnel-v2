@@ -360,7 +360,7 @@ function CreateRCSUser({ prefill, onSubmitFinal }) {
           onClick={() => setActiveUploadKey(null)}
         >
           <div
-            className='w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl border border-[#D0D5DD] bg-[#F8FAFC] p-4'
+            className='w-full max-w-xl max-h-[40vh] overflow-y-auto rounded-2xl border border-[#D0D5DD] bg-[#F8FAFC] p-4'
             onClick={(event) => event.stopPropagation()}
           >
             <div className='flex items-center justify-between mb-3'>
