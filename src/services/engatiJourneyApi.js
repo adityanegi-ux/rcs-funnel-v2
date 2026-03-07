@@ -139,6 +139,7 @@ export async function capturePage3Journey({ formValues }) {
   const payload = {
     ...buildCommonPayload('page_3', sessionId),
     p3_timestamp_utc: getUtcIsoTimestamp(),
+    business_name: formValues.businessName || formValues.brandName || '',
     short_description: formValues.shortDescription || '',
     logo_url_png: formValues.logoUrl || '',
     header_image_url_png: formValues.headerImageUrl || '',
