@@ -18,6 +18,7 @@ import {
 // --- LIVE DATA ENGINE ---
 
 const engatiLogo = 'https://s3.ap-south-1.amazonaws.com/file-upload-public/prod/117384/ENGATI_PUBLIC/139971_03032026_123838_Screenshot_2026_03_03_at_18.08.26.png-tReBC.png'
+const PAGE2_FORM_STORAGE_KEY = 'engati_rcs_page2_form_draft';
 
 const INITIAL_BRAND_DATA = {
     logo: null,
@@ -53,6 +54,57 @@ const BLOCKED_BRAND_REGEX = new RegExp(
 );
 
 const hasBlockedBrandTerm = (value) => BLOCKED_BRAND_REGEX.test(String(value || '').trim());
+
+function sanitizePage2Form(inputValue) {
+    const source = inputValue && typeof inputValue === 'object' ? inputValue : {};
+
+    return {
+        fullName: String(source.fullName || ''),
+        email: String(source.email || ''),
+        phone: String(source.phone || '').replace(/\D/g, '').slice(0, 10)
+    };
+}
+
+function readPage2Draft() {
+    if (typeof window === 'undefined') {
+        return null;
+    }
+
+    try {
+        const rawValue = window.localStorage.getItem(PAGE2_FORM_STORAGE_KEY);
+        if (!rawValue) {
+            return null;
+        }
+
+        return sanitizePage2Form(JSON.parse(rawValue));
+    } catch {
+        return null;
+    }
+}
+
+function writePage2Draft(formValue) {
+    if (typeof window === 'undefined') {
+        return;
+    }
+
+    try {
+        window.localStorage.setItem(PAGE2_FORM_STORAGE_KEY, JSON.stringify(sanitizePage2Form(formValue)));
+    } catch {
+        // no-op: localStorage may be unavailable in some browsers/modes.
+    }
+}
+
+function clearPage2Draft() {
+    if (typeof window === 'undefined') {
+        return;
+    }
+
+    try {
+        window.localStorage.removeItem(PAGE2_FORM_STORAGE_KEY);
+    } catch {
+        // no-op: localStorage may be unavailable in some browsers/modes.
+    }
+}
 
 const useBrandData = (companyName, shouldFetchPreview) => {
     const [data, setData] = useState(INITIAL_BRAND_DATA);
@@ -262,6 +314,7 @@ function AppV2() {
                             setIsPreviewActivated(false);
                             setLeadDetails({ fullName: '', email: '', phone: '' });
                             setRcsTransitionTrigger({ brandKey: '', nonce: 0 });
+                            clearPage2Draft();
                         }}
                     >
                         <img src={engatiLogo} alt="Engati Logo" className="w-32 h-12" />
@@ -711,7 +764,24 @@ function Page1({ companyName, setCompanyName, onNext }) {
 }
 
 function Page2({ onBack, onSubmit, initialForm }) {
-    const [form, setForm] = useState(initialForm);
+    const [form, setForm] = useState(() => {
+        const initialValues = sanitizePage2Form(initialForm);
+        const savedDraft = readPage2Draft();
+
+        if (!savedDraft) {
+            return initialValues;
+        }
+
+        return {
+            fullName: savedDraft.fullName || initialValues.fullName,
+            email: savedDraft.email || initialValues.email,
+            phone: savedDraft.phone || initialValues.phone
+        };
+    });
+
+    useEffect(() => {
+        writePage2Draft(form);
+    }, [form]);
 
     const isValidEmail = (value) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
     const isValidIndianMobileInput = (value) => {

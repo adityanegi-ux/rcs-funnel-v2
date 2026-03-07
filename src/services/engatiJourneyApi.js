@@ -20,6 +20,28 @@ function getLandingUrl() {
   return window.location.href;
 }
 
+function getLandingOrigin() {
+  if (typeof window === 'undefined') {
+    return '';
+  }
+
+  return window.location.origin || '';
+}
+
+function normalizeWebsiteUrl(inputValue) {
+  const rawValue = String(inputValue || '').trim();
+
+  if (!rawValue) {
+    return '';
+  }
+
+  if (/^https?:\/\//i.test(rawValue)) {
+    return rawValue;
+  }
+
+  return `https://${rawValue}`;
+}
+
 function generateNumericSessionId() {
   const epochPart = String(Date.now());
   const randomPart = String(Math.floor(Math.random() * 1000000)).padStart(6, '0');
@@ -99,7 +121,7 @@ export async function capturePage2Journey({ fullName, email, phoneNumber }) {
   const payload = {
     ...buildCommonPayload('page_2', sessionId),
     'user.user_name': fullName || '',
-    'user.email': email || '',
+    email: email || '',
     'user.phone_no': normalizeIndianMobileNo(phoneNumber),
     'user.channel': 'web',
     p2_timestamp_utc: getUtcIsoTimestamp(),
@@ -111,6 +133,9 @@ export async function capturePage2Journey({ fullName, email, phoneNumber }) {
 export async function capturePage3Journey({ formValues }) {
   const sessionId = getOrCreateLeadSessionId();
   const normalizedCallValue = normalizeIndianMobileNo(formValues.callValue || formValues.phoneNumber);
+  const normalizedWebsiteValue = normalizeWebsiteUrl(
+    formValues.websiteValue || formValues.websiteUrl || getLandingOrigin()
+  );
   const payload = {
     ...buildCommonPayload('page_3', sessionId),
     p3_timestamp_utc: getUtcIsoTimestamp(),
@@ -118,11 +143,11 @@ export async function capturePage3Journey({ formValues }) {
     logo_url_png: formValues.logoUrl || '',
     header_image_url_png: formValues.headerImageUrl || '',
     call_value: normalizedCallValue,
-    website_value: formValues.websiteValue || formValues.websiteUrl || '',
+    website_value: normalizedWebsiteValue,
     email_value: formValues.emailValue || formValues.emailAddress || '',
     info_summary: formValues.infoSummary || '',
     support_hours: STATIC_SUPPORT_HOURS,
-    support_address: formValues.emailValue || formValues.emailAddress || '',
+    support_address: normalizeWebsiteUrl(formValues.supportAddress || normalizedWebsiteValue),
     opt_view_privacy_policy: Boolean(
       String(formValues.privacyPolicyUrl || '').trim() ||
         formValues.privacyPolicyEnabled ||
