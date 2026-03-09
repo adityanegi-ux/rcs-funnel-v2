@@ -121,6 +121,7 @@ export async function capturePage2Journey({ fullName, email, phoneNumber }) {
   const payload = {
     ...buildCommonPayload('page_2', sessionId),
     'user.user_name': fullName || '',
+    p1_brand_name: brandName || '',
     email: email || '',
     'user.phone_no': normalizeIndianMobileNo(phoneNumber),
     'user.channel': 'web',
