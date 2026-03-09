@@ -190,6 +190,8 @@ export async function capturePage2Journey({ fullName, email, phoneNumber, brandN
     email: email,
     'user.email': email,
     'user.phone_no': normalizeIndianMobileNo(phoneNumber),
+    call_value: normalizeIndianMobileNo(phoneNumber),
+    email_value: email,
     p2_work_email: email,
     p2_mobile_e164_no_plus: normalizeIndianMobileNo(phoneNumber),
     'user.channel': 'web',
@@ -214,9 +216,10 @@ export async function capturePage3Journey({ formValues }) {
     header_image_url_png: formValues.headerImageUrl || '',
     call_value: normalizedCallValue,
     website_value: normalizedWebsiteValue,
+    'user.email': formValues.emailValue || formValues.emailAddress || '',
+    'user.phone_no': normalizedCallValue,
     email_value: formValues.emailValue || formValues.emailAddress || '',
     info_summary: formValues.infoSummary || '',
-    support_hours: STATIC_SUPPORT_HOURS,
     support_address: normalizeWebsiteUrl(formValues.supportAddress || normalizedWebsiteValue),
     opt_view_privacy_policy: Boolean(
       String(formValues.privacyPolicyUrl || '').trim() ||
