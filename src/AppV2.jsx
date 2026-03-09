@@ -13,6 +13,7 @@ import {
     capturePage1Journey,
     capturePage2Journey,
     capturePage3Journey,
+    journeyEnd,
     createResumeToken,
     decodeResumeToken,
     getOrCreateLeadSessionId,
@@ -430,6 +431,14 @@ function AppV2() {
         console.log('[RCS Demo] Section 3 payload:', formValues);
         const response = await capturePage3Journey({ formValues });
         console.log('[Engati Flow] Page 3 captured:', response);
+
+        try {
+            const journeyEndResponse = await journeyEnd();
+            console.log('[Engati Flow] Journey ended:', journeyEndResponse);
+        } catch (error) {
+            console.error('[Engati Flow] Journey end trigger failed:', error);
+        }
+
         return response;
     };
 

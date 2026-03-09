@@ -80,7 +80,6 @@ export function setLeadSessionId(value) {
 function buildCommonPayload(journeyStep, sessionId) {
   return {
     'user.channel': 'web',
-    'user.phone_no': sessionId,
     lead_session_id: sessionId,
     journey_step: journeyStep,
   };
@@ -219,7 +218,6 @@ export async function capturePage3Journey({ formValues }) {
     call_value: normalizedCallValue,
     website_value: normalizedWebsiteValue,
     email_value: formValues.emailValue || formValues.emailAddress || '',
-    journey_completion: true,
     support_address: normalizeWebsiteUrl(formValues.supportAddress || normalizedWebsiteValue),
     opt_view_privacy_policy: Boolean(
       String(formValues.privacyPolicyUrl || '').trim() ||
@@ -231,6 +229,15 @@ export async function capturePage3Journey({ formValues }) {
         formValues.termsOfServicesEnabled ||
         formValues.opt_view_terms_of_services
     ),
+  };
+
+  return postEngatiFlow(ENGATI_RCS_PROFILE_SUBMIT_URL, payload);
+}
+
+export async function journeyEnd() {
+  const sessionId = getOrCreateLeadSessionId();
+  const payload = {
+    ...buildCommonPayload('completed', sessionId)
   };
 
   return postEngatiFlow(ENGATI_RCS_PROFILE_SUBMIT_URL, payload);
