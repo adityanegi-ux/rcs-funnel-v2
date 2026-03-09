@@ -2,6 +2,7 @@ import { createServer } from 'node:http';
 import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { ENGATI_FLOW_ENDPOINTS, ENGATI_UPLOAD_ENDPOINT } from './engatiFlowEndpoints.js';
+import { createResumeToken, decodeResumeToken, toResumeTokenError } from './resumeToken.js';
 
 const ROUTE_TO_FLOW = {
   '/api/engati/journey-start': ENGATI_FLOW_ENDPOINTS.journeyStart,
@@ -104,6 +105,11 @@ function sendJson(res, statusCode, body) {
   res.statusCode = statusCode;
   res.setHeader('Content-Type', 'application/json');
   res.end(JSON.stringify(body));
+}
+
+function handleResumeTokenError(res, error) {
+  const mapped = toResumeTokenError(error);
+  sendJson(res, mapped.status, mapped.body);
 }
 
 async function readJsonBody(req) {
@@ -413,6 +419,64 @@ const server = createServer(async (req, res) => {
       fieldName: body?.fieldName || 'file',
     });
     sendJson(res, uploadResult.status, uploadResult.body);
+    return;
+  }
+
+  if (pathname === '/api/engati/resume-token') {
+    if (!setCorsHeaders(req, res)) {
+      sendJson(res, 403, { error: 'origin_not_allowed' });
+      return;
+    }
+
+    if (req.method === 'OPTIONS') {
+      res.statusCode = 204;
+      res.end();
+      return;
+    }
+
+    if (req.method === 'POST') {
+      let body;
+      try {
+        body = await readJsonBody(req);
+      } catch (error) {
+        sendJson(res, 400, {
+          error: 'invalid_json_body',
+          message: error instanceof Error ? error.message : 'Invalid request payload',
+        });
+        return;
+      }
+
+      try {
+        const created = createResumeToken(body);
+        sendJson(res, 200, {
+          token: created.token,
+          nextPage: created.nextPage,
+          issuedAtUtc: created.issuedAtUtc,
+          expiresAtUtc: created.expiresAtUtc,
+        });
+      } catch (error) {
+        handleResumeTokenError(res, error);
+      }
+      return;
+    }
+
+    if (req.method === 'GET') {
+      const token = String(url.searchParams.get('token') || '').trim();
+      if (!token) {
+        sendJson(res, 400, { error: 'missing_resume_token' });
+        return;
+      }
+
+      try {
+        const decoded = decodeResumeToken(token);
+        sendJson(res, 200, decoded);
+      } catch (error) {
+        handleResumeTokenError(res, error);
+      }
+      return;
+    }
+
+    sendJson(res, 405, { error: 'method_not_allowed' });
     return;
   }
 

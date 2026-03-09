@@ -12,13 +12,18 @@ import debounce from './utils/lodashDebounce';
 import {
     capturePage1Journey,
     capturePage2Journey,
-    capturePage3Journey
+    capturePage3Journey,
+    createResumeToken,
+    decodeResumeToken,
+    getOrCreateLeadSessionId,
+    setLeadSessionId
 } from './services/engatiJourneyApi';
 
 // --- LIVE DATA ENGINE ---
 
 const engatiLogo = 'https://s3.ap-south-1.amazonaws.com/file-upload-public/prod/117384/ENGATI_PUBLIC/139971_03032026_123838_Screenshot_2026_03_03_at_18.08.26.png-tReBC.png'
 const PAGE2_FORM_STORAGE_KEY = 'engati_rcs_page2_form_draft';
+const RESUME_TOKEN_QUERY_KEYS = ['resume_token', 'resume'];
 
 const INITIAL_BRAND_DATA = {
     logo: null,
@@ -103,6 +108,71 @@ function clearPage2Draft() {
         window.localStorage.removeItem(PAGE2_FORM_STORAGE_KEY);
     } catch {
         // no-op: localStorage may be unavailable in some browsers/modes.
+    }
+}
+
+function readResumeTokenFromUrl() {
+    if (typeof window === 'undefined') {
+        return '';
+    }
+
+    try {
+        const url = new URL(window.location.href);
+        for (const key of RESUME_TOKEN_QUERY_KEYS) {
+            const value = String(url.searchParams.get(key) || '').trim();
+            if (value) {
+                return value;
+            }
+        }
+        return '';
+    } catch {
+        return '';
+    }
+}
+
+function clearResumeTokenFromUrl() {
+    if (typeof window === 'undefined') {
+        return;
+    }
+
+    try {
+        const url = new URL(window.location.href);
+        let hasChanges = false;
+        for (const key of RESUME_TOKEN_QUERY_KEYS) {
+            if (url.searchParams.has(key)) {
+                url.searchParams.delete(key);
+                hasChanges = true;
+            }
+        }
+
+        if (!hasChanges) {
+            return;
+        }
+
+        const nextQuery = url.searchParams.toString();
+        const nextUrl = `${url.pathname}${nextQuery ? `?${nextQuery}` : ''}${url.hash}`;
+        window.history.replaceState({}, '', nextUrl);
+    } catch {
+        // no-op
+    }
+}
+
+function buildResumeUrl(token) {
+    if (typeof window === 'undefined') {
+        return '';
+    }
+
+    const normalizedToken = String(token || '').trim();
+    if (!normalizedToken) {
+        return '';
+    }
+
+    try {
+        const url = new URL(window.location.origin + window.location.pathname);
+        url.searchParams.set('resume_token', normalizedToken);
+        return url.toString();
+    } catch {
+        return '';
     }
 }
 
@@ -231,8 +301,61 @@ function AppV2() {
     const [isPreviewActivated, setIsPreviewActivated] = useState(false);
     const [leadDetails, setLeadDetails] = useState({ fullName: '', email: '', phone: '' });
     const [rcsTransitionTrigger, setRcsTransitionTrigger] = useState({ brandKey: '', nonce: 0 });
+    const [isRestoringResume, setIsRestoringResume] = useState(() => Boolean(readResumeTokenFromUrl()));
 
     const brandData = useBrandData(companyName, isPreviewActivated);
+
+    useEffect(() => {
+        const token = readResumeTokenFromUrl();
+        if (!token) {
+            return;
+        }
+
+        let isCancelled = false;
+
+        decodeResumeToken(token)
+            .then((decoded) => {
+                if (isCancelled) {
+                    return;
+                }
+
+                const restoredLeadDetails = sanitizePage2Form(decoded?.leadDetails);
+                const restoredBrandName = String(decoded?.brandName || '').trim();
+                const restoredLeadSessionId = String(decoded?.leadSessionId || '').trim();
+                const restoredNextPage = Number(decoded?.nextPage) === 2 ? 2 : 3;
+
+                if (restoredLeadSessionId) {
+                    setLeadSessionId(restoredLeadSessionId);
+                }
+
+                writePage2Draft(restoredLeadDetails);
+                setCompanyName(restoredBrandName);
+                setLeadDetails(restoredLeadDetails);
+                setIsPreviewActivated(Boolean(restoredBrandName));
+                setRcsTransitionTrigger({ brandKey: restoredBrandName, nonce: Date.now() });
+                setPage(restoredNextPage);
+                clearResumeTokenFromUrl();
+
+                console.log('[Engati Flow] Resume token restored. Navigated to page:', restoredNextPage);
+            })
+            .catch((error) => {
+                if (isCancelled) {
+                    return;
+                }
+
+                console.error('[Engati Flow] Resume token restore failed:', error);
+                clearResumeTokenFromUrl();
+            })
+            .finally(() => {
+                if (!isCancelled) {
+                    setIsRestoringResume(false);
+                }
+            });
+
+        return () => {
+            isCancelled = true;
+        };
+    }, []);
 
     const handlePage1Submit = () => {
         const normalizedBrandName = companyName.trim();
@@ -261,17 +384,20 @@ function AppV2() {
 
     const handlePage2Submit = (nextLeadDetails) => {
         const normalizedBrandName = companyName.trim();
+        const normalizedLeadDetails = sanitizePage2Form(nextLeadDetails);
+        const leadSessionId = getOrCreateLeadSessionId();
         const stepOneTwoPayload = {
             brandName: normalizedBrandName,
-            lead: nextLeadDetails
+            lead: normalizedLeadDetails
         };
 
         console.log('[RCS Demo] Section 1 + Section 2 payload:', stepOneTwoPayload);
 
         capturePage2Journey({
-            fullName: nextLeadDetails.fullName,
-            email: nextLeadDetails.email,
-            phoneNumber: nextLeadDetails.phone
+            fullName: normalizedLeadDetails.fullName,
+            email: normalizedLeadDetails.email,
+            phoneNumber: normalizedLeadDetails.phone,
+            brandName: normalizedBrandName 
         })
             .then((response) => {
                 console.log('[Engati Flow] Page 2 captured:', response);
@@ -280,7 +406,23 @@ function AppV2() {
                 console.error('[Engati Flow] Page 2 capture failed:', error);
             });
 
-        setLeadDetails(nextLeadDetails);
+        createResumeToken({
+            brandName: normalizedBrandName,
+            leadDetails: normalizedLeadDetails,
+            leadSessionId,
+            nextPage: 3
+        })
+            .then((response) => {
+                const resumeUrl = buildResumeUrl(response?.token);
+                if (resumeUrl) {
+                    console.log('[Engati Flow] Resume link generated (use for reminder nudges):', resumeUrl);
+                }
+            })
+            .catch((error) => {
+                console.error('[Engati Flow] Resume link generation failed:', error);
+            });
+
+        setLeadDetails(normalizedLeadDetails);
         setPage(3);
     };
 
@@ -290,6 +432,20 @@ function AppV2() {
         console.log('[Engati Flow] Page 3 captured:', response);
         return response;
     };
+
+    if (isRestoringResume) {
+        return (
+            <div className="min-h-screen bg-[#F8F9FA] antialiased font-sans overflow-x-hidden relative flex flex-col">
+                <main className="flex-1 pt-24 pb-10 relative z-10 w-full">
+                    <div className="max-w-7xl mx-auto px-8 w-full">
+                        <div className="max-w-lg rounded-2xl border border-[#E4E7EC] bg-white p-6 shadow-sm">
+                            <p className="text-sm font-medium text-[#344054]">Restoring your progress...</p>
+                        </div>
+                    </div>
+                </main>
+            </div>
+        );
+    }
 
     return (
         <div className="min-h-screen bg-[#F8F9FA] antialiased font-sans overflow-x-hidden relative flex flex-col">

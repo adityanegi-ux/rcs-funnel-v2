@@ -4,6 +4,7 @@ const ENGATI_PROXY_BASE_URL = '/api/engati';
 const ENGATI_JOURNEY_START_URL = `${ENGATI_PROXY_BASE_URL}/journey-start`;
 const ENGATI_IDENTITY_CAPTURE_URL = `${ENGATI_PROXY_BASE_URL}/identity-capture`;
 const ENGATI_RCS_PROFILE_SUBMIT_URL = `${ENGATI_PROXY_BASE_URL}/rcs-profile-submit`;
+const ENGATI_RESUME_TOKEN_URL = `${ENGATI_PROXY_BASE_URL}/resume-token`;
 const STATIC_SUPPORT_HOURS = 'Mon-Fri, 9 AM - 6 PM';
 
 const SESSION_ID_STORAGE_KEY = 'engati_rcs_lead_session_id';
@@ -63,6 +64,19 @@ export function getOrCreateLeadSessionId() {
   return created;
 }
 
+export function setLeadSessionId(value) {
+  if (typeof window === 'undefined') {
+    return;
+  }
+
+  const normalized = String(value || '').replace(/\D/g, '');
+  if (!normalized) {
+    return;
+  }
+
+  window.localStorage.setItem(SESSION_ID_STORAGE_KEY, normalized);
+}
+
 function buildCommonPayload(journeyStep, sessionId) {
   return {
     'user.channel': 'web',
@@ -104,6 +118,57 @@ async function postEngatiFlow(flowUrl, payload) {
   return response.data;
 }
 
+function sanitizeLeadDetailsForResume(inputValue) {
+  const source = inputValue && typeof inputValue === 'object' ? inputValue : {};
+  return {
+    fullName: String(source.fullName || '').trim(),
+    email: String(source.email || '').trim(),
+    phone: String(source.phone || '').replace(/\D/g, '').slice(0, 15),
+  };
+}
+
+export async function createResumeToken({
+  brandName,
+  leadDetails,
+  leadSessionId,
+  nextPage = 3,
+  ttlSeconds,
+}) {
+  const payload = {
+    brandName: String(brandName || '').trim(),
+    leadDetails: sanitizeLeadDetailsForResume(leadDetails),
+    leadSessionId: String(leadSessionId || getOrCreateLeadSessionId()),
+    nextPage,
+  };
+
+  if (Number.isFinite(Number(ttlSeconds)) && Number(ttlSeconds) > 0) {
+    payload.ttlSeconds = Number(ttlSeconds);
+  }
+
+  const response = await axios.post(ENGATI_RESUME_TOKEN_URL, payload, {
+    headers: {
+      'Content-Type': 'application/json',
+    },
+  });
+
+  return response.data;
+}
+
+export async function decodeResumeToken(token) {
+  const normalizedToken = String(token || '').trim();
+  if (!normalizedToken) {
+    throw new Error('missing_resume_token');
+  }
+
+  const response = await axios.get(ENGATI_RESUME_TOKEN_URL, {
+    params: {
+      token: normalizedToken,
+    },
+  });
+
+  return response.data;
+}
+
 export async function capturePage1Journey({ brandName }) {
   const sessionId = getOrCreateLeadSessionId();
   const payload = {
@@ -116,14 +181,17 @@ export async function capturePage1Journey({ brandName }) {
   return postEngatiFlow(ENGATI_JOURNEY_START_URL, payload);
 }
 
-export async function capturePage2Journey({ fullName, email, phoneNumber }) {
+export async function capturePage2Journey({ fullName, email, phoneNumber, brandName }) {
   const sessionId = getOrCreateLeadSessionId();
   const payload = {
     ...buildCommonPayload('page_2', sessionId),
-    'user.user_name': fullName || '',
-    p1_brand_name: brandName || '',
-    email: email || '',
+    'user.user_name': fullName,
+    p1_brand_name: brandName,
+    email: email,
+    'user.email': email,
     'user.phone_no': normalizeIndianMobileNo(phoneNumber),
+    p2_work_email: email,
+    p2_mobile_e164_no_plus: normalizeIndianMobileNo(phoneNumber),
     'user.channel': 'web',
     p2_timestamp_utc: getUtcIsoTimestamp(),
   };
