@@ -219,7 +219,7 @@ export async function capturePage3Journey({ formValues }) {
     call_value: normalizedCallValue,
     website_value: normalizedWebsiteValue,
     email_value: formValues.emailValue || formValues.emailAddress || '',
-    info_summary: formValues.infoSummary || '',
+    journey_completion: true,
     support_address: normalizeWebsiteUrl(formValues.supportAddress || normalizedWebsiteValue),
     opt_view_privacy_policy: Boolean(
       String(formValues.privacyPolicyUrl || '').trim() ||
