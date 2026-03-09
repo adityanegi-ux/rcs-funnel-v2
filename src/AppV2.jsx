@@ -432,13 +432,6 @@ function AppV2() {
         const response = await capturePage3Journey({ formValues });
         console.log('[Engati Flow] Page 3 captured:', response);
 
-        try {
-            const journeyEndResponse = await journeyEnd();
-            console.log('[Engati Flow] Journey ended:', journeyEndResponse);
-        } catch (error) {
-            console.error('[Engati Flow] Journey end trigger failed:', error);
-        }
-
         return response;
     };
 

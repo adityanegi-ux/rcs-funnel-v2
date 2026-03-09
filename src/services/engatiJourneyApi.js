@@ -182,7 +182,7 @@ export async function decodeResumeToken(token) {
 export async function capturePage1Journey({ brandName }) {
   const sessionId = getOrCreateLeadSessionId();
   const payload = {
-    ...buildCommonPayload({ journeyStep: 'page_1', sessionId }),
+    ...buildCommonPayload({ journeyStep: 'page_2', sessionId }),
     p1_brand_name: brandName || '',
     p1_url: getLandingUrl(),
     p1_timestamp_utc: getUtcIsoTimestamp(),
@@ -196,7 +196,7 @@ export async function capturePage2Journey({ fullName, email, phoneNumber, brandN
   const normalizedPhone = normalizeIndianMobileNo(phoneNumber);
   const payload = {
     ...buildCommonPayload({
-      journeyStep: 'page_2',
+      journeyStep: 'page_3',
       email: normalizedEmail,
       phoneNumber: normalizedPhone,
       includeSessionId: false,
@@ -222,7 +222,7 @@ export async function capturePage3Journey({ formValues }) {
   );
   const payload = {
     ...buildCommonPayload({
-      journeyStep: 'page_3',
+      journeyStep: 'completed',
       email: normalizedEmailValue,
       phoneNumber: normalizedCallValue,
       includeSessionId: false,
