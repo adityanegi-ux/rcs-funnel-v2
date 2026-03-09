@@ -77,11 +77,22 @@ export function setLeadSessionId(value) {
   window.localStorage.setItem(SESSION_ID_STORAGE_KEY, normalized);
 }
 
-function buildCommonPayload(journeyStep, sessionId) {
+function buildCommonPayload({
+  journeyStep,
+  sessionId,
+  email,
+  phoneNumber,
+  includeSessionId = true,
+}) {
+  const normalizedEmail = String(email || '').trim();
+  const normalizedPhone = normalizeIndianMobileNo(phoneNumber);
+
   return {
     'user.channel': 'web',
-    lead_session_id: sessionId,
+    ...(includeSessionId ? { lead_session_id: sessionId } : {}),
     journey_step: journeyStep,
+    ...(normalizedEmail ? { 'user.email': normalizedEmail } : {}),
+    ...(normalizedPhone ? { 'user.phone_no': normalizedPhone } : {}),
   };
 }
 
@@ -171,7 +182,7 @@ export async function decodeResumeToken(token) {
 export async function capturePage1Journey({ brandName }) {
   const sessionId = getOrCreateLeadSessionId();
   const payload = {
-    ...buildCommonPayload('page_1', sessionId),
+    ...buildCommonPayload({ journeyStep: 'page_1', sessionId }),
     p1_brand_name: brandName || '',
     p1_url: getLandingUrl(),
     p1_timestamp_utc: getUtcIsoTimestamp(),
@@ -181,19 +192,22 @@ export async function capturePage1Journey({ brandName }) {
 }
 
 export async function capturePage2Journey({ fullName, email, phoneNumber, brandName }) {
-  const sessionId = getOrCreateLeadSessionId();
+  const normalizedEmail = String(email || '').trim();
+  const normalizedPhone = normalizeIndianMobileNo(phoneNumber);
   const payload = {
-    ...buildCommonPayload('page_2', sessionId),
+    ...buildCommonPayload({
+      journeyStep: 'page_2',
+      email: normalizedEmail,
+      phoneNumber: normalizedPhone,
+      includeSessionId: false,
+    }),
     'user.user_name': fullName,
     p1_brand_name: brandName,
-    email: email,
-    'user.email': email,
-    'user.phone_no': normalizeIndianMobileNo(phoneNumber),
-    call_value: normalizeIndianMobileNo(phoneNumber),
-    email_value: email,
-    p2_work_email: email,
-    p2_mobile_e164_no_plus: normalizeIndianMobileNo(phoneNumber),
-    'user.channel': 'web',
+    email: normalizedEmail,
+    call_value: normalizedPhone,
+    email_value: normalizedEmail,
+    p2_work_email: normalizedEmail,
+    p2_mobile_e164_no_plus: normalizedPhone,
     p2_timestamp_utc: getUtcIsoTimestamp(),
   };
 
@@ -201,23 +215,28 @@ export async function capturePage2Journey({ fullName, email, phoneNumber, brandN
 }
 
 export async function capturePage3Journey({ formValues }) {
-  const sessionId = getOrCreateLeadSessionId();
   const normalizedCallValue = normalizeIndianMobileNo(formValues.callValue || formValues.phoneNumber);
+  const normalizedEmailValue = String(formValues.emailValue || formValues.emailAddress || '').trim();
   const normalizedWebsiteValue = normalizeWebsiteUrl(
     formValues.websiteValue || formValues.websiteUrl || getLandingOrigin()
   );
   const payload = {
-    ...buildCommonPayload('page_3', sessionId),
+    ...buildCommonPayload({
+      journeyStep: 'page_3',
+      email: normalizedEmailValue,
+      phoneNumber: normalizedCallValue,
+      includeSessionId: false,
+    }),
     p3_timestamp_utc: getUtcIsoTimestamp(),
     business_name: formValues.businessName || formValues.brandName || '',
     short_description: formValues.shortDescription || '',
     logo_url_png: formValues.logoUrl || '',
     header_image_url_png: formValues.headerImageUrl || '',
-    p3_work_email: formValues.emailValue || formValues.emailAddress || '',
+    p3_work_email: normalizedEmailValue,
     p3_mobile_e164_no_plus: normalizedCallValue,
     call_value: normalizedCallValue,
     website_value: normalizedWebsiteValue,
-    email_value: formValues.emailValue || formValues.emailAddress || '',
+    email_value: normalizedEmailValue,
     support_address: normalizeWebsiteUrl(formValues.supportAddress || normalizedWebsiteValue),
     opt_view_privacy_policy: Boolean(
       String(formValues.privacyPolicyUrl || '').trim() ||
@@ -237,7 +256,8 @@ export async function capturePage3Journey({ formValues }) {
 export async function journeyEnd() {
   const sessionId = getOrCreateLeadSessionId();
   const payload = {
-    ...buildCommonPayload('completed', sessionId)
+    lead_session_id: sessionId,
+    journey_step: 'completed',
   };
 
   return postEngatiFlow(ENGATI_RCS_PROFILE_SUBMIT_URL, payload);
