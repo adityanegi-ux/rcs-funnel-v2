@@ -4,10 +4,9 @@ const ENGATI_PROXY_BASE_URL = '/api/engati';
 const ENGATI_JOURNEY_START_URL = `${ENGATI_PROXY_BASE_URL}/journey-start`;
 const ENGATI_IDENTITY_CAPTURE_URL = `${ENGATI_PROXY_BASE_URL}/identity-capture`;
 const ENGATI_RCS_PROFILE_SUBMIT_URL = `${ENGATI_PROXY_BASE_URL}/rcs-profile-submit`;
+const ENGATI_RCS_FINAL_SUBMIT_URL = `${ENGATI_PROXY_BASE_URL}/rcs-final-submit`;
 const ENGATI_RESUME_TOKEN_URL = `${ENGATI_PROXY_BASE_URL}/resume-token`;
 const ENGATI_MEDIA_UPLOAD_URL = `${ENGATI_PROXY_BASE_URL}/media-upload`;
-const STATIC_SUPPORT_HOURS = 'Mon-Fri, 9 AM - 6 PM';
-
 const SESSION_ID_STORAGE_KEY = 'engati_rcs_lead_session_id';
 
 function getUtcIsoTimestamp() {
@@ -199,17 +198,17 @@ export async function uploadImageDataUrl({
 
     const uploadedUrl = String(response?.data?.url || '').trim();
     if (!uploadedUrl) {
-      throw new Error('Upload completed but no public URL was returned.');
+      return normalizedDataUrl;
     }
 
     return uploadedUrl;
   } catch (error) {
-    const upstreamMessage =
-      error?.response?.data?.message ||
-      error?.response?.data?.error ||
-      error?.message;
+    const fallbackUrl = String(error?.response?.data?.url || normalizedDataUrl).trim();
+    if (fallbackUrl) {
+      return fallbackUrl;
+    }
 
-    throw new Error(String(upstreamMessage || 'Unable to upload image.'));
+    return normalizedDataUrl;
   }
 }
 
@@ -338,14 +337,21 @@ export async function capturePage3Journey({ formValues }) {
   return postEngatiFlow(ENGATI_RCS_PROFILE_SUBMIT_URL, payload);
 }
 
-export async function journeyEnd() {
+export async function journeyEnd({ phoneNumber } = {}) {
   const sessionId = getOrCreateLeadSessionId();
+  const normalizedPhone = normalizeIndianMobileNo(phoneNumber);
   const payload = {
-    lead_session_id: sessionId,
-    journey_step: 'completed',
+    ...buildCommonPayload({
+      journeyStep: 'submit',
+      sessionId,
+      phoneNumber: normalizedPhone,
+    }),
+    call_value: normalizedPhone,
+    p3_mobile_e164_no_plus: normalizedPhone,
+    submit_timestamp_utc: getUtcIsoTimestamp(),
   };
 
-  return postEngatiFlow(ENGATI_RCS_PROFILE_SUBMIT_URL, payload);
+  return postEngatiFlow(ENGATI_RCS_FINAL_SUBMIT_URL, payload);
 }
 
 export function sendPageDropOffBeacon({

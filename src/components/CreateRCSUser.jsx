@@ -118,8 +118,19 @@ function SubmissionSuccessModal({ isOpen, onClose }) {
   );
 }
 
-function CreateRCSUser({ prefill, onSubmitFinal }) {
-  const initialValues = useMemo(() => createInitialRcsForm(prefill), [prefill]);
+function CreateRCSUser({ prefill, onSubmitFinal, onDraftChange }) {
+  const prefillBrandName = String(prefill?.brandName || '').trim();
+  const prefillEmail = String(prefill?.email || '').trim();
+  const prefillPhone = String(prefill?.phone || '').trim();
+  const initialValues = useMemo(
+    () =>
+      createInitialRcsForm({
+        brandName: prefillBrandName,
+        email: prefillEmail,
+        phone: prefillPhone,
+      }),
+    [prefillBrandName, prefillEmail, prefillPhone]
+  );
   const {
     register,
     control,
@@ -138,6 +149,7 @@ function CreateRCSUser({ prefill, onSubmitFinal }) {
     control,
     name: ['logoUrl', 'headerImageUrl'],
   });
+  const watchedFormValues = useWatch({ control });
   const activeUploadSpec = useMemo(
     () => UPLOAD_SPECS.find((uploadSpec) => uploadSpec.key === activeUploadKey) || null,
     [activeUploadKey]
@@ -148,6 +160,14 @@ function CreateRCSUser({ prefill, onSubmitFinal }) {
   useEffect(() => {
     reset(initialValues);
   }, [initialValues, reset]);
+
+  useEffect(() => {
+    if (!onDraftChange) {
+      return;
+    }
+
+    onDraftChange(watchedFormValues && typeof watchedFormValues === 'object' ? watchedFormValues : {});
+  }, [onDraftChange, watchedFormValues]);
 
   const logUploadIntent = (key) => {
     console.log(
@@ -360,7 +380,7 @@ function CreateRCSUser({ prefill, onSubmitFinal }) {
           onClick={() => setActiveUploadKey(null)}
         >
           <div
-            className='w-full max-w-4xl h-[56vh] min-h-[460px] overflow-hidden rounded-2xl border border-[#D0D5DD] bg-[#F8FAFC] p-4'
+            className='w-full max-w-4xl max-h-[90vh] overflow-y-auto rounded-2xl border border-[#D0D5DD] bg-[#F8FAFC] p-4'
             onClick={(event) => event.stopPropagation()}
           >
             <div className='flex items-center justify-between mb-3'>

@@ -38,6 +38,7 @@ export function cropImageDataUrl({
   zoom,
   offsetX,
   offsetY,
+  fitMode = 'cover',
 }) {
   return new Promise((resolve, reject) => {
     const image = new Image();
@@ -53,7 +54,10 @@ export function cropImageDataUrl({
         return;
       }
 
-      const baseScale = Math.max(outputWidth / image.naturalWidth, outputHeight / image.naturalHeight);
+      const baseScale =
+        fitMode === 'contain'
+          ? Math.min(outputWidth / image.naturalWidth, outputHeight / image.naturalHeight)
+          : Math.max(outputWidth / image.naturalWidth, outputHeight / image.naturalHeight);
       const scaled = baseScale * zoom;
       const drawWidth = image.naturalWidth * scaled;
       const drawHeight = image.naturalHeight * scaled;

@@ -63,6 +63,37 @@ function parseDataUrl(dataUrl) {
   return { bytes, mimeType };
 }
 
+function getCandidateUploadUrls(primaryUrl) {
+  const candidates = [primaryUrl];
+
+  if (primaryUrl.includes('://agents.engati.ai/')) {
+    candidates.push(primaryUrl.replace('://agents.engati.ai/', '://api.engati.ai/'));
+    candidates.push(primaryUrl.replace('://agents.engati.ai/', '://devapi.engati.ai/'));
+  } else if (primaryUrl.includes('://api.engati.ai/')) {
+    candidates.push(primaryUrl.replace('://api.engati.ai/', '://agents.engati.ai/'));
+    candidates.push(primaryUrl.replace('://api.engati.ai/', '://devapi.engati.ai/'));
+  } else if (primaryUrl.includes('://devapi.engati.ai/')) {
+    candidates.push(primaryUrl.replace('://devapi.engati.ai/', '://agents.engati.ai/'));
+    candidates.push(primaryUrl.replace('://devapi.engati.ai/', '://api.engati.ai/'));
+  }
+
+  return Array.from(new Set(candidates));
+}
+
+function buildBasicAuthorizationHeader(apiKey) {
+  const normalizedKey = String(apiKey || '').trim();
+
+  if (!normalizedKey) {
+    return '';
+  }
+
+  if (/^Basic\s+/i.test(normalizedKey)) {
+    return normalizedKey;
+  }
+
+  return `Basic ${normalizedKey}`;
+}
+
 function extractUploadedUrl(responseBody) {
   const candidates = [
     responseBody?.url,
@@ -77,7 +108,7 @@ function extractUploadedUrl(responseBody) {
   return candidates.find((value) => typeof value === 'string' && value.trim().length > 0) || '';
 }
 
-async function callUpload(url, body, apiKey) {
+async function callUpload(url, body, authorizationHeader) {
   const formData = new FormData();
   formData.append(body.fieldName, new Blob([body.bytes], { type: body.mimeType }), body.fileName);
 
@@ -85,7 +116,7 @@ async function callUpload(url, body, apiKey) {
     method: 'POST',
     redirect: 'manual',
     headers: {
-      Authorization: `Basic ${apiKey}`,
+      Authorization: authorizationHeader,
     },
     body: formData,
   });
@@ -133,6 +164,7 @@ export default async function handler(req, res) {
   const dataUrl = String(payload.dataUrl || '').trim();
   const fileName = String(payload.fileName || 'image.png').trim();
   const fieldName = String(payload.fieldName || 'file').trim();
+  const authorizationHeader = buildBasicAuthorizationHeader(apiKey);
 
   if (!dataUrl) {
     return res.status(400).json({ error: 'missing_image_data' });
@@ -153,23 +185,27 @@ export default async function handler(req, res) {
   };
 
   try {
+    const candidateUrls = getCandidateUploadUrls(ENGATI_UPLOAD_ENDPOINT);
     let upstream = null;
     let uploadedUrl = '';
     const attempts = [];
 
-    const attempt = await callUpload(ENGATI_UPLOAD_ENDPOINT, uploadBody, apiKey);
-    upstream = attempt;
-    const attemptUploadedUrl = extractUploadedUrl(attempt.body);
-    attempts.push({
-      url: attempt.url,
-      status: attempt.status,
-      contentType: attempt.contentType,
-      location: attempt.location,
-      hasUploadedUrl: Boolean(attemptUploadedUrl),
-    });
+    for (const targetUrl of candidateUrls) {
+      const attempt = await callUpload(targetUrl, uploadBody, authorizationHeader);
+      upstream = attempt;
+      const attemptUploadedUrl = extractUploadedUrl(attempt.body);
+      attempts.push({
+        url: attempt.url,
+        status: attempt.status,
+        contentType: attempt.contentType,
+        location: attempt.location,
+        hasUploadedUrl: Boolean(attemptUploadedUrl),
+      });
 
-    if (attemptUploadedUrl) {
-      uploadedUrl = attemptUploadedUrl;
+      if (attemptUploadedUrl) {
+        uploadedUrl = attemptUploadedUrl;
+        break;
+      }
     }
 
     if (uploadedUrl) {
@@ -178,18 +214,24 @@ export default async function handler(req, res) {
       return res.status(upstream?.status || 200).json(upstream?.body || { url: uploadedUrl });
     }
 
-    const fallbackStatus =
-      upstream?.status && upstream.status >= 400 ? upstream.status : 502;
+    // Fail-soft: when upstream upload does not return a URL, return the source blob/data URL.
     res.setHeader('x-engati-upload-url', upstream?.url || '');
-    return res.status(fallbackStatus).json({
-      error: 'upload_url_missing',
-      message: 'Upload endpoint responded but no media URL was returned.',
+    res.setHeader('x-engati-upload-fallback', 'true');
+    return res.status(200).json({
+      url: dataUrl,
+      isFallbackBlob: true,
+      fallbackReason: 'upload_url_missing',
+      message: 'Upload endpoint returned no media URL. Returning input blob as fallback.',
       attempts,
       upstreamBody: upstream?.body || {},
     });
   } catch (error) {
-    return res.status(502).json({
-      error: 'engati_upload_failed',
+    // Fail-soft: on upload transport/runtime errors, return the source blob/data URL.
+    res.setHeader('x-engati-upload-fallback', 'true');
+    return res.status(200).json({
+      url: dataUrl,
+      isFallbackBlob: true,
+      fallbackReason: 'engati_upload_failed',
       message: error instanceof Error ? error.message : 'Unknown upload error',
     });
   }

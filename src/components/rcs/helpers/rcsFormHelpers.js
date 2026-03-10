@@ -16,6 +16,7 @@ export const UPLOAD_SPECS = [
     minHeight: 256,
     outputWidth: 256,
     outputHeight: 256,
+    fitMode: 'contain',
   },
   {
     key: 'headerImageUrl',
@@ -24,6 +25,7 @@ export const UPLOAD_SPECS = [
     minHeight: 448,
     outputWidth: 1440,
     outputHeight: 448,
+    fitMode: 'cover',
   },
 ];
 

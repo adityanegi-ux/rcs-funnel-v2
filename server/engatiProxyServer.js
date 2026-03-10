@@ -8,6 +8,7 @@ const ROUTE_TO_FLOW = {
   '/api/engati/journey-start': ENGATI_FLOW_ENDPOINTS.journeyStart,
   '/api/engati/identity-capture': ENGATI_FLOW_ENDPOINTS.identityCapture,
   '/api/engati/rcs-profile-submit': ENGATI_FLOW_ENDPOINTS.rcsProfileSubmit,
+  '/api/engati/rcs-final-submit': ENGATI_FLOW_ENDPOINTS.rcsFinalSubmit,
   // Backward compatible aliases
   '/api/engati/page-1': ENGATI_FLOW_ENDPOINTS.journeyStart,
   '/api/engati/page-2': ENGATI_FLOW_ENDPOINTS.identityCapture,
@@ -227,6 +228,37 @@ function parseDataUrl(dataUrl) {
   return { bytes, mimeType };
 }
 
+function getCandidateUploadUrls(primaryUrl) {
+  const candidates = [primaryUrl];
+
+  if (primaryUrl.includes('://agents.engati.ai/')) {
+    candidates.push(primaryUrl.replace('://agents.engati.ai/', '://api.engati.ai/'));
+    candidates.push(primaryUrl.replace('://agents.engati.ai/', '://devapi.engati.ai/'));
+  } else if (primaryUrl.includes('://api.engati.ai/')) {
+    candidates.push(primaryUrl.replace('://api.engati.ai/', '://agents.engati.ai/'));
+    candidates.push(primaryUrl.replace('://api.engati.ai/', '://devapi.engati.ai/'));
+  } else if (primaryUrl.includes('://devapi.engati.ai/')) {
+    candidates.push(primaryUrl.replace('://devapi.engati.ai/', '://agents.engati.ai/'));
+    candidates.push(primaryUrl.replace('://devapi.engati.ai/', '://api.engati.ai/'));
+  }
+
+  return Array.from(new Set(candidates));
+}
+
+function buildBasicAuthorizationHeader(apiKey) {
+  const normalizedKey = String(apiKey || '').trim();
+
+  if (!normalizedKey) {
+    return '';
+  }
+
+  if (/^Basic\s+/i.test(normalizedKey)) {
+    return normalizedKey;
+  }
+
+  return `Basic ${normalizedKey}`;
+}
+
 function extractUploadedUrl(responseBody) {
   const candidates = [
     responseBody?.url,
@@ -243,6 +275,7 @@ function extractUploadedUrl(responseBody) {
 
 async function proxyUploadToEngati({ dataUrl, fileName = 'image.png', fieldName = 'file' }) {
   const apiKey = process.env.ENGATI_API_KEY;
+  const authorizationHeader = buildBasicAuthorizationHeader(apiKey);
 
   if (!apiKey) {
     return {
@@ -267,55 +300,63 @@ async function proxyUploadToEngati({ dataUrl, fileName = 'image.png', fieldName 
   }
 
   try {
-    const formData = new FormData();
-    formData.append(
-      fieldName,
-      new Blob([parsedImage.bytes], { type: parsedImage.mimeType }),
-      fileName
-    );
+    const candidateUrls = getCandidateUploadUrls(ENGATI_UPLOAD_ENDPOINT);
+    let upstream = null;
 
-    const response = await fetch(ENGATI_UPLOAD_ENDPOINT, {
-      method: 'POST',
-      redirect: 'manual',
-      headers: {
-        Authorization: `Basic ${apiKey}`,
-      },
-      body: formData,
-    });
+    for (const targetUrl of candidateUrls) {
+      const formData = new FormData();
+      formData.append(
+        fieldName,
+        new Blob([parsedImage.bytes], { type: parsedImage.mimeType }),
+        fileName
+      );
 
-    const responseText = await response.text();
-    let parsedBody;
+      const response = await fetch(targetUrl, {
+        method: 'POST',
+        redirect: 'manual',
+        headers: {
+          Authorization: authorizationHeader,
+        },
+        body: formData,
+      });
 
-    try {
-      parsedBody = responseText ? JSON.parse(responseText) : {};
-    } catch {
-      parsedBody = { raw: responseText };
-    }
+      const responseText = await response.text();
+      let parsedBody;
 
-    const upstream = {
-      status: response.status,
-      body: parsedBody,
-      url: ENGATI_UPLOAD_ENDPOINT,
-      contentType: response.headers.get('content-type') || '',
-      location: response.headers.get('location') || '',
-    };
-    const extractedUrl = extractUploadedUrl(parsedBody);
-    if (extractedUrl) {
-      upstream.body = {
-        ...upstream.body,
-        url: extractedUrl,
+      try {
+        parsedBody = responseText ? JSON.parse(responseText) : {};
+      } catch {
+        parsedBody = { raw: responseText };
+      }
+
+      upstream = {
+        status: response.status,
+        body: parsedBody,
+        url: targetUrl,
+        contentType: response.headers.get('content-type') || '',
+        location: response.headers.get('location') || '',
       };
+
+      const extractedUrl = extractUploadedUrl(parsedBody);
+      if (extractedUrl) {
+        upstream.body = {
+          ...upstream.body,
+          url: extractedUrl,
+        };
+        break;
+      }
     }
 
     const uploadedUrl = extractUploadedUrl(upstream?.body);
     if (!uploadedUrl) {
-      const fallbackStatus =
-        upstream?.status && upstream.status >= 400 ? upstream.status : 502;
+      // Fail-soft: when upstream upload does not return a URL, return the source blob/data URL.
       return {
-        status: fallbackStatus,
+        status: 200,
         body: {
-          error: 'upload_url_missing',
-          message: 'Upload endpoint responded but no media URL was returned.',
+          url: dataUrl,
+          isFallbackBlob: true,
+          fallbackReason: 'upload_url_missing',
+          message: 'Upload endpoint returned no media URL. Returning input blob as fallback.',
           _engati_upload_url: upstream?.url || '',
           _engati_upload_content_type: upstream?.contentType || '',
           _engati_upload_location: upstream?.location || '',
@@ -333,10 +374,13 @@ async function proxyUploadToEngati({ dataUrl, fileName = 'image.png', fieldName 
       },
     };
   } catch (error) {
+    // Fail-soft: on upload transport/runtime errors, return the source blob/data URL.
     return {
-      status: 502,
+      status: 200,
       body: {
-        error: 'engati_upload_failed',
+        url: dataUrl,
+        isFallbackBlob: true,
+        fallbackReason: 'engati_upload_failed',
         message: error instanceof Error ? error.message : 'Unknown upload error',
       },
     };

@@ -9,6 +9,7 @@ import {
 import axios from 'axios';
 import CreateRCSUser from './components/CreateRCSUser';
 import debounce from './utils/lodashDebounce';
+import { getSubmissionReadiness } from './components/rcs/helpers/rcsFormHelpers';
 import {
     capturePage1Journey,
     capturePage2Journey,
@@ -25,6 +26,8 @@ import {
 const engatiLogo = 'https://s3.ap-south-1.amazonaws.com/file-upload-public/prod/117384/ENGATI_PUBLIC/139971_03032026_123838_Screenshot_2026_03_03_at_18.08.26.png-tReBC.png'
 const PAGE2_FORM_STORAGE_KEY = 'engati_rcs_page2_form_draft';
 const RESUME_TOKEN_QUERY_KEYS = ['resume_token', 'resume'];
+const PAGE3_AUTO_CAPTURE_DELAY_MS = 60000;
+const PAGE3_READINESS_MIN_PERCENTAGE = 43;
 
 const INITIAL_BRAND_DATA = {
     logo: null,
@@ -303,8 +306,117 @@ function AppV2() {
     const [leadDetails, setLeadDetails] = useState({ fullName: '', email: '', phone: '' });
     const [rcsTransitionTrigger, setRcsTransitionTrigger] = useState({ brandKey: '', nonce: 0 });
     const [isRestoringResume, setIsRestoringResume] = useState(() => Boolean(readResumeTokenFromUrl()));
+    const page3DraftRef = useRef({});
+    const page3AutoCaptureTimeoutRef = useRef(null);
+    const page3AutoCaptureInFlightRef = useRef(false);
+    const page3AutoCaptureDoneRef = useRef(false);
+    const page3SubmitClickedRef = useRef(false);
+    const page3SubmitInFlightRef = useRef(false);
+    const page3SubmitDoneRef = useRef(false);
 
     const brandData = useBrandData(companyName, isPreviewActivated);
+
+    const clearPage3AutoCaptureTimer = (reason = '') => {
+        if (!page3AutoCaptureTimeoutRef.current) {
+            return;
+        }
+
+        window.clearTimeout(page3AutoCaptureTimeoutRef.current);
+        page3AutoCaptureTimeoutRef.current = null;
+
+        console.log('[Engati Debug] Page 3 auto-capture timer cleared.', {
+            reason: reason || 'unspecified',
+        });
+    };
+
+    const tryPage3AutoCapture = () => {
+        if (page3SubmitClickedRef.current) {
+            console.log('[Engati Debug] Auto-capture skipped: final submit already clicked.');
+            return;
+        }
+
+        if (page3AutoCaptureInFlightRef.current || page3AutoCaptureDoneRef.current) {
+            console.log('[Engati Debug] Auto-capture skipped: already in-flight or completed.', {
+                inFlight: page3AutoCaptureInFlightRef.current,
+                done: page3AutoCaptureDoneRef.current,
+            });
+            return;
+        }
+
+        const draftSnapshot = page3DraftRef.current || {};
+        const readiness = getSubmissionReadiness(draftSnapshot);
+
+        if (readiness.percentage < PAGE3_READINESS_MIN_PERCENTAGE) {
+            console.log('[Engati Debug] Auto-capture skipped: readiness below threshold.', {
+                readiness: readiness.percentage,
+                threshold: PAGE3_READINESS_MIN_PERCENTAGE,
+            });
+            return;
+        }
+
+        page3AutoCaptureDoneRef.current = true;
+        page3AutoCaptureInFlightRef.current = true;
+        console.log('[Engati Debug] Auto-capture trigger fired (inactivity).', {
+            readiness: readiness.percentage,
+            threshold: PAGE3_READINESS_MIN_PERCENTAGE,
+            inactivityMs: PAGE3_AUTO_CAPTURE_DELAY_MS,
+        });
+
+        capturePage3Journey({ formValues: draftSnapshot })
+            .then((response) => {
+                console.log('[Engati Flow] Page 3 auto-captured:', response);
+            })
+            .catch((error) => {
+                console.error('[Engati Flow] Page 3 auto-capture failed:', error);
+            })
+            .finally(() => {
+                page3AutoCaptureInFlightRef.current = false;
+            });
+    };
+
+    const armPage3AutoCaptureTimer = (reason = '') => {
+        if (page !== 3) {
+            return;
+        }
+
+        if (page3SubmitClickedRef.current || page3AutoCaptureInFlightRef.current || page3AutoCaptureDoneRef.current) {
+            console.log('[Engati Debug] Auto-capture timer not armed.', {
+                reason: reason || 'unspecified',
+                submitClicked: page3SubmitClickedRef.current,
+                inFlight: page3AutoCaptureInFlightRef.current,
+                done: page3AutoCaptureDoneRef.current,
+            });
+            return;
+        }
+
+        clearPage3AutoCaptureTimer('re-armed');
+        page3AutoCaptureTimeoutRef.current = window.setTimeout(() => {
+            page3AutoCaptureTimeoutRef.current = null;
+            console.log('[Engati Debug] Page 3 inactivity window elapsed. Evaluating auto-capture...');
+            tryPage3AutoCapture();
+        }, PAGE3_AUTO_CAPTURE_DELAY_MS);
+
+        console.log('[Engati Debug] Page 3 auto-capture timer armed.', {
+            reason: reason || 'unspecified',
+            inactivityMs: PAGE3_AUTO_CAPTURE_DELAY_MS,
+        });
+    };
+
+    const resetPage3Tracking = () => {
+        clearPage3AutoCaptureTimer('reset_page3_tracking');
+        page3DraftRef.current = {};
+        page3AutoCaptureInFlightRef.current = false;
+        page3AutoCaptureDoneRef.current = false;
+        page3SubmitClickedRef.current = false;
+        page3SubmitInFlightRef.current = false;
+        page3SubmitDoneRef.current = false;
+    };
+
+    const handlePage3DraftChange = (nextFormValues) => {
+        page3DraftRef.current =
+            nextFormValues && typeof nextFormValues === 'object' ? nextFormValues : {};
+        armPage3AutoCaptureTimer('page3_draft_changed');
+    };
 
     useEffect(() => {
         const token = readResumeTokenFromUrl();
@@ -324,6 +436,7 @@ function AppV2() {
                 const restoredBrandName = String(decoded?.brandName || '').trim();
                 const restoredLeadSessionId = String(decoded?.leadSessionId || '').trim();
                 const restoredNextPage = Number(decoded?.nextPage) === 2 ? 2 : 3;
+                resetPage3Tracking();
 
                 if (restoredLeadSessionId) {
                     setLeadSessionId(restoredLeadSessionId);
@@ -358,6 +471,19 @@ function AppV2() {
         };
     }, []);
 
+    useEffect(() => {
+        if (page !== 3) {
+            clearPage3AutoCaptureTimer('left_page_3');
+            return undefined;
+        }
+
+        armPage3AutoCaptureTimer('entered_page_3');
+
+        return () => {
+            clearPage3AutoCaptureTimer('page3_effect_cleanup');
+        };
+    }, [page]);
+
     const handlePage1Submit = () => {
         const normalizedBrandName = companyName.trim();
         if (!normalizedBrandName) {
@@ -369,6 +495,7 @@ function AppV2() {
             return;
         }
 
+        resetPage3Tracking();
         setIsPreviewActivated(true);
         setRcsTransitionTrigger({ brandKey: normalizedBrandName, nonce: Date.now() });
 
@@ -428,11 +555,37 @@ function AppV2() {
     };
 
     const handlePage3Submit = async (formValues) => {
-        console.log('[RCS Demo] Section 3 payload:', formValues);
-        const response = await capturePage3Journey({ formValues });
-        console.log('[Engati Flow] Page 3 captured:', response);
+        console.log('[Engati Debug] Final submit button handler invoked.', {
+            inFlight: page3SubmitInFlightRef.current,
+            done: page3SubmitDoneRef.current,
+            autoCaptured: page3AutoCaptureDoneRef.current,
+        });
 
-        return response;
+        if (page3SubmitInFlightRef.current || page3SubmitDoneRef.current) {
+            console.log('[Engati Debug] Final submit skipped: already in-flight or completed.');
+            return {};
+        }
+
+        clearPage3AutoCaptureTimer('final_submit_clicked');
+        page3SubmitClickedRef.current = true;
+        page3SubmitInFlightRef.current = true;
+
+        try {
+            const normalizedPhoneForSubmit =
+                formValues?.callValue ||
+                page3DraftRef.current?.callValue ||
+                leadDetails?.phone ||
+                '';
+            console.log('[Engati Debug] Final submit API call triggered.', {
+                phoneNumber: normalizedPhoneForSubmit,
+            });
+            const response = await journeyEnd({ phoneNumber: normalizedPhoneForSubmit });
+            page3SubmitDoneRef.current = true;
+            console.log('[Engati Flow] Page 3 journey submit captured:', response);
+            return response;
+        } finally {
+            page3SubmitInFlightRef.current = false;
+        }
     };
 
     if (isRestoringResume) {
@@ -467,6 +620,7 @@ function AppV2() {
                     <div
                         className="flex items-center cursor-pointer"
                         onClick={() => {
+                            resetPage3Tracking();
                             setPage(1);
                             setCompanyName('');
                             setIsPreviewActivated(false);
@@ -524,6 +678,7 @@ function AppV2() {
                                 leadDetails={leadDetails}
                                 onBack={() => setPage(2)}
                                 onSubmitFinal={handlePage3Submit}
+                                onDraftChange={handlePage3DraftChange}
                             />
                         </AnimatePresence>
                     )}
@@ -1038,7 +1193,7 @@ function Page2({ onBack, onSubmit, initialForm }) {
         </motion.div >
     );
 }
-function Page3({ companyName, leadDetails, onBack, onSubmitFinal }) {
+function Page3({ companyName, leadDetails, onBack, onSubmitFinal, onDraftChange }) {
     return (
         <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.4 }} className="space-y-5 w-full">
             <button onClick={onBack} className="flex items-center gap-2 text-[#666666] hover:text-[#000000] transition-colors group">
@@ -1052,6 +1207,7 @@ function Page3({ companyName, leadDetails, onBack, onSubmitFinal }) {
                     phone: leadDetails.phone
                 }}
                 onSubmitFinal={onSubmitFinal}
+                onDraftChange={onDraftChange}
             />
         </motion.div>
     );

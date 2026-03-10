@@ -4,6 +4,7 @@ const STEP_TO_FLOW = {
   'journey-start': ENGATI_FLOW_ENDPOINTS.journeyStart,
   'identity-capture': ENGATI_FLOW_ENDPOINTS.identityCapture,
   'rcs-profile-submit': ENGATI_FLOW_ENDPOINTS.rcsProfileSubmit,
+  'rcs-final-submit': ENGATI_FLOW_ENDPOINTS.rcsFinalSubmit,
   // Backward compatible aliases
   'page-1': ENGATI_FLOW_ENDPOINTS.journeyStart,
   'page-2': ENGATI_FLOW_ENDPOINTS.identityCapture,

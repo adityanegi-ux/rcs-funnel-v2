@@ -62,7 +62,7 @@ function RcsPhonePreview({ form }) {
                 <div className='-mt-6 flex justify-center'>
                   {form.logoUrl ? (
                     <div className='h-12 w-12 rounded-full border-2 border-[#EEF2F6] bg-white overflow-hidden'>
-                      <img src={form.logoUrl} alt='Logo' className='h-full w-full object-cover' />
+                      <img src={form.logoUrl} alt='Logo' className='h-full w-full object-contain p-0.5' />
                     </div>
                   ) : (
                     <div className='h-12 w-12 rounded-full border-2 border-[#EEF2F6] bg-gradient-to-br from-[#3BA9CF] to-[#67D0C5] flex items-center justify-center text-[#F6F2DD] text-base font-semibold'>
