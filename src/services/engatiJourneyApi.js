@@ -5,6 +5,7 @@ const ENGATI_JOURNEY_START_URL = `${ENGATI_PROXY_BASE_URL}/journey-start`;
 const ENGATI_IDENTITY_CAPTURE_URL = `${ENGATI_PROXY_BASE_URL}/identity-capture`;
 const ENGATI_RCS_PROFILE_SUBMIT_URL = `${ENGATI_PROXY_BASE_URL}/rcs-profile-submit`;
 const ENGATI_RESUME_TOKEN_URL = `${ENGATI_PROXY_BASE_URL}/resume-token`;
+const ENGATI_MEDIA_UPLOAD_URL = `${ENGATI_PROXY_BASE_URL}/media-upload`;
 const STATIC_SUPPORT_HOURS = 'Mon-Fri, 9 AM - 6 PM';
 
 const SESSION_ID_STORAGE_KEY = 'engati_rcs_lead_session_id';
@@ -126,6 +127,90 @@ async function postEngatiFlow(flowUrl, payload) {
   });
 
   return response.data;
+}
+
+function postEngatiFlowWithBeacon(flowUrl, payload) {
+  if (typeof window === 'undefined') {
+    return false;
+  }
+
+  const serializedPayload = JSON.stringify(payload || {});
+  if (!serializedPayload) {
+    return false;
+  }
+
+  if (typeof navigator !== 'undefined' && typeof navigator.sendBeacon === 'function') {
+    try {
+      const body = new Blob([serializedPayload], { type: 'application/json' });
+      return navigator.sendBeacon(flowUrl, body);
+    } catch {
+      // Fall through to fetch keepalive.
+    }
+  }
+
+  if (typeof fetch === 'function') {
+    fetch(flowUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: serializedPayload,
+      keepalive: true,
+    }).catch(() => {});
+    return true;
+  }
+
+  return false;
+}
+
+function buildDropOffMetadata({ page, reason }) {
+  return {
+    drop_off: true,
+    drop_off_page: page,
+    drop_off_reason: String(reason || 'page_unload'),
+    drop_off_timestamp_utc: getUtcIsoTimestamp(),
+  };
+}
+
+export async function uploadImageDataUrl({
+  dataUrl,
+  fileName = 'image.png',
+  fieldName = 'file',
+}) {
+  const normalizedDataUrl = String(dataUrl || '').trim();
+  if (!normalizedDataUrl) {
+    throw new Error('No image selected for upload.');
+  }
+
+  try {
+    const response = await axios.post(
+      ENGATI_MEDIA_UPLOAD_URL,
+      {
+        dataUrl: normalizedDataUrl,
+        fileName: String(fileName || 'image.png'),
+        fieldName: String(fieldName || 'file'),
+      },
+      {
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      }
+    );
+
+    const uploadedUrl = String(response?.data?.url || '').trim();
+    if (!uploadedUrl) {
+      throw new Error('Upload completed but no public URL was returned.');
+    }
+
+    return uploadedUrl;
+  } catch (error) {
+    const upstreamMessage =
+      error?.response?.data?.message ||
+      error?.response?.data?.error ||
+      error?.message;
+
+    throw new Error(String(upstreamMessage || 'Unable to upload image.'));
+  }
 }
 
 function sanitizeLeadDetailsForResume(inputValue) {
@@ -261,4 +346,131 @@ export async function journeyEnd() {
   };
 
   return postEngatiFlow(ENGATI_RCS_PROFILE_SUBMIT_URL, payload);
+}
+
+export function sendPageDropOffBeacon({
+  page,
+  brandName,
+  leadDetails,
+  formValues,
+  reason = 'page_unload',
+}) {
+  const pageNumber = Number(page);
+  const normalizedBrandName = String(brandName || '').trim();
+  const normalizedLeadDetails = sanitizeLeadDetailsForResume(leadDetails);
+  const sessionId = getOrCreateLeadSessionId();
+
+  if (pageNumber === 1) {
+    if (!normalizedBrandName) {
+      return false;
+    }
+
+    const payload = {
+      ...buildCommonPayload({ journeyStep: 'drop_off', sessionId }),
+      ...buildDropOffMetadata({ page: 'page_1', reason }),
+      p1_brand_name: normalizedBrandName,
+      p1_url: getLandingUrl(),
+      p1_timestamp_utc: getUtcIsoTimestamp(),
+    };
+
+    return postEngatiFlowWithBeacon(ENGATI_JOURNEY_START_URL, payload);
+  }
+
+  if (pageNumber === 2) {
+    const normalizedEmail = normalizedLeadDetails.email;
+    const normalizedPhone = normalizeIndianMobileNo(normalizedLeadDetails.phone);
+    const normalizedFullName = String(normalizedLeadDetails.fullName || '').trim();
+    const hasPage2Data = Boolean(
+      normalizedBrandName || normalizedEmail || normalizedPhone || normalizedFullName
+    );
+
+    if (!hasPage2Data) {
+      return false;
+    }
+
+    const payload = {
+      ...buildCommonPayload({
+        journeyStep: 'drop_off',
+        sessionId,
+        email: normalizedEmail,
+        phoneNumber: normalizedPhone,
+      }),
+      ...buildDropOffMetadata({ page: 'page_2', reason }),
+      'user.user_name': normalizedFullName,
+      p1_brand_name: normalizedBrandName,
+      email: normalizedEmail,
+      call_value: normalizedPhone,
+      email_value: normalizedEmail,
+      p2_work_email: normalizedEmail,
+      p2_mobile_e164_no_plus: normalizedPhone,
+      p2_timestamp_utc: getUtcIsoTimestamp(),
+    };
+
+    return postEngatiFlowWithBeacon(ENGATI_IDENTITY_CAPTURE_URL, payload);
+  }
+
+  if (pageNumber === 3) {
+    const source = formValues && typeof formValues === 'object' ? formValues : {};
+    const businessName = String(source.businessName || source.brandName || normalizedBrandName).trim();
+    const shortDescription = String(source.shortDescription || '').trim();
+    const logoUrl = String(source.logoUrl || '').trim();
+    const headerImageUrl = String(source.headerImageUrl || '').trim();
+    const normalizedCallValue = normalizeIndianMobileNo(
+      source.callValue || source.phoneNumber || normalizedLeadDetails.phone
+    );
+    const normalizedEmailValue = String(
+      source.emailValue || source.emailAddress || normalizedLeadDetails.email
+    ).trim();
+    const rawWebsiteValue = String(source.websiteValue || source.websiteUrl || '').trim();
+    const normalizedWebsiteValue = normalizeWebsiteUrl(rawWebsiteValue || getLandingOrigin());
+    const privacyPolicyUrl = String(source.privacyPolicyUrl || '').trim();
+    const termsOfServicesUrl = String(source.termsOfServicesUrl || '').trim();
+
+    const hasPage3Data = Boolean(
+      businessName ||
+        shortDescription ||
+        logoUrl ||
+        headerImageUrl ||
+        normalizedCallValue ||
+        normalizedEmailValue ||
+        rawWebsiteValue ||
+        privacyPolicyUrl ||
+        termsOfServicesUrl
+    );
+
+    if (!hasPage3Data) {
+      return false;
+    }
+
+    const payload = {
+      ...buildCommonPayload({
+        journeyStep: 'drop_off',
+        sessionId,
+        email: normalizedEmailValue,
+        phoneNumber: normalizedCallValue,
+      }),
+      ...buildDropOffMetadata({ page: 'page_3', reason }),
+      p3_timestamp_utc: getUtcIsoTimestamp(),
+      business_name: businessName,
+      short_description: shortDescription,
+      logo_url_png: logoUrl,
+      header_image_url_png: headerImageUrl,
+      p3_work_email: normalizedEmailValue,
+      p3_mobile_e164_no_plus: normalizedCallValue,
+      call_value: normalizedCallValue,
+      website_value: normalizedWebsiteValue,
+      email_value: normalizedEmailValue,
+      support_address: normalizeWebsiteUrl(source.supportAddress || normalizedWebsiteValue),
+      opt_view_privacy_policy: Boolean(
+        privacyPolicyUrl || source.privacyPolicyEnabled || source.opt_view_privacy_policy
+      ),
+      opt_view_terms_of_services: Boolean(
+        termsOfServicesUrl || source.termsOfServicesEnabled || source.opt_view_terms_of_services
+      ),
+    };
+
+    return postEngatiFlowWithBeacon(ENGATI_RCS_PROFILE_SUBMIT_URL, payload);
+  }
+
+  return false;
 }

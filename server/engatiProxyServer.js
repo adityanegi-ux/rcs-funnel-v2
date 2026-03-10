@@ -227,23 +227,6 @@ function parseDataUrl(dataUrl) {
   return { bytes, mimeType };
 }
 
-function getCandidateUploadUrls(primaryUrl) {
-  const candidates = [primaryUrl];
-
-  if (primaryUrl.includes('://api.engati.ai/')) {
-    candidates.push(primaryUrl.replace('://api.engati.ai/', '://devapi.engati.ai/'));
-    candidates.push(primaryUrl.replace('://api.engati.ai/', '://agents.engati.ai/'));
-  } else if (primaryUrl.includes('://devapi.engati.ai/')) {
-    candidates.push(primaryUrl.replace('://devapi.engati.ai/', '://api.engati.ai/'));
-    candidates.push(primaryUrl.replace('://devapi.engati.ai/', '://agents.engati.ai/'));
-  } else if (primaryUrl.includes('://agents.engati.ai/')) {
-    candidates.push(primaryUrl.replace('://agents.engati.ai/', '://api.engati.ai/'));
-    candidates.push(primaryUrl.replace('://agents.engati.ai/', '://devapi.engati.ai/'));
-  }
-
-  return Array.from(new Set(candidates));
-}
-
 function extractUploadedUrl(responseBody) {
   const candidates = [
     responseBody?.url,
@@ -283,52 +266,45 @@ async function proxyUploadToEngati({ dataUrl, fileName = 'image.png', fieldName 
     };
   }
 
-  const candidateUrls = getCandidateUploadUrls(ENGATI_UPLOAD_ENDPOINT);
-
   try {
-    let upstream = null;
+    const formData = new FormData();
+    formData.append(
+      fieldName,
+      new Blob([parsedImage.bytes], { type: parsedImage.mimeType }),
+      fileName
+    );
 
-    for (const targetUrl of candidateUrls) {
-      const formData = new FormData();
-      formData.append(
-        fieldName,
-        new Blob([parsedImage.bytes], { type: parsedImage.mimeType }),
-        fileName
-      );
+    const response = await fetch(ENGATI_UPLOAD_ENDPOINT, {
+      method: 'POST',
+      redirect: 'manual',
+      headers: {
+        Authorization: `Basic ${apiKey}`,
+      },
+      body: formData,
+    });
 
-      const response = await fetch(targetUrl, {
-        method: 'POST',
-        redirect: 'manual',
-        headers: {
-          Authorization: `Basic ${apiKey}`,
-        },
-        body: formData,
-      });
+    const responseText = await response.text();
+    let parsedBody;
 
-      const responseText = await response.text();
-      let parsedBody;
+    try {
+      parsedBody = responseText ? JSON.parse(responseText) : {};
+    } catch {
+      parsedBody = { raw: responseText };
+    }
 
-      try {
-        parsedBody = responseText ? JSON.parse(responseText) : {};
-      } catch {
-        parsedBody = { raw: responseText };
-      }
-
-      upstream = {
-        status: response.status,
-        body: parsedBody,
-        url: targetUrl,
-        contentType: response.headers.get('content-type') || '',
-        location: response.headers.get('location') || '',
+    const upstream = {
+      status: response.status,
+      body: parsedBody,
+      url: ENGATI_UPLOAD_ENDPOINT,
+      contentType: response.headers.get('content-type') || '',
+      location: response.headers.get('location') || '',
+    };
+    const extractedUrl = extractUploadedUrl(parsedBody);
+    if (extractedUrl) {
+      upstream.body = {
+        ...upstream.body,
+        url: extractedUrl,
       };
-      const uploadedUrl = extractUploadedUrl(parsedBody);
-      if (uploadedUrl) {
-        upstream.body = {
-          ...upstream.body,
-          url: uploadedUrl,
-        };
-        break;
-      }
     }
 
     const uploadedUrl = extractUploadedUrl(upstream?.body);

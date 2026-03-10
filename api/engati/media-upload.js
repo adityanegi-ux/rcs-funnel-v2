@@ -63,23 +63,6 @@ function parseDataUrl(dataUrl) {
   return { bytes, mimeType };
 }
 
-function getCandidateUploadUrls(primaryUrl) {
-  const candidates = [primaryUrl];
-
-  if (primaryUrl.includes('://api.engati.ai/')) {
-    candidates.push(primaryUrl.replace('://api.engati.ai/', '://devapi.engati.ai/'));
-    candidates.push(primaryUrl.replace('://api.engati.ai/', '://agents.engati.ai/'));
-  } else if (primaryUrl.includes('://devapi.engati.ai/')) {
-    candidates.push(primaryUrl.replace('://devapi.engati.ai/', '://api.engati.ai/'));
-    candidates.push(primaryUrl.replace('://devapi.engati.ai/', '://agents.engati.ai/'));
-  } else if (primaryUrl.includes('://agents.engati.ai/')) {
-    candidates.push(primaryUrl.replace('://agents.engati.ai/', '://api.engati.ai/'));
-    candidates.push(primaryUrl.replace('://agents.engati.ai/', '://devapi.engati.ai/'));
-  }
-
-  return Array.from(new Set(candidates));
-}
-
 function extractUploadedUrl(responseBody) {
   const candidates = [
     responseBody?.url,
@@ -170,27 +153,23 @@ export default async function handler(req, res) {
   };
 
   try {
-    const candidateUrls = getCandidateUploadUrls(ENGATI_UPLOAD_ENDPOINT);
     let upstream = null;
     let uploadedUrl = '';
     const attempts = [];
 
-    for (const targetUrl of candidateUrls) {
-      const attempt = await callUpload(targetUrl, uploadBody, apiKey);
-      upstream = attempt;
-      const attemptUploadedUrl = extractUploadedUrl(attempt.body);
-      attempts.push({
-        url: attempt.url,
-        status: attempt.status,
-        contentType: attempt.contentType,
-        location: attempt.location,
-        hasUploadedUrl: Boolean(attemptUploadedUrl),
-      });
+    const attempt = await callUpload(ENGATI_UPLOAD_ENDPOINT, uploadBody, apiKey);
+    upstream = attempt;
+    const attemptUploadedUrl = extractUploadedUrl(attempt.body);
+    attempts.push({
+      url: attempt.url,
+      status: attempt.status,
+      contentType: attempt.contentType,
+      location: attempt.location,
+      hasUploadedUrl: Boolean(attemptUploadedUrl),
+    });
 
-      if (attemptUploadedUrl) {
-        uploadedUrl = attemptUploadedUrl;
-        break;
-      }
+    if (attemptUploadedUrl) {
+      uploadedUrl = attemptUploadedUrl;
     }
 
     if (uploadedUrl) {

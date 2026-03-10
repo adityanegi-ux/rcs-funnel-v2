@@ -54,7 +54,7 @@ function InputWithActionButton({ type = 'text', placeholder, registerProps, onAc
       <button
         type='button'
         onClick={onAction}
-        className='h-14 px-5 rounded-2xl border border-[#C5CED8] bg-white text-[#344054] text-base font-semibold hover:bg-[#F8FAFC] hover:cursor-pointer transition-colors flex items-center justify-center gap-2'
+        className='h-16 md:h-14 min-w-[128px] px-6 rounded-2xl border border-[#C5CED8] bg-white text-[#344054] text-base font-semibold hover:bg-[#F8FAFC] hover:cursor-pointer transition-colors flex items-center justify-center gap-2'
       >
         <Upload className='w-4 h-4' />
         Upload

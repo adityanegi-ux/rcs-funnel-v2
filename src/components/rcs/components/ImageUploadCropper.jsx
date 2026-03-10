@@ -2,11 +2,11 @@ import { useMemo, useState } from 'react';
 
 import {
   cropImageDataUrl,
-  downloadDataUrlFile,
   getImageDimensions,
   readFileAsDataUrl,
   validateImageDimensions,
 } from '../helpers/imageUploadHelpers';
+import { uploadImageDataUrl } from '../../../services/engatiJourneyApi';
 
 function ImageUploadCropper({ spec, value, onChange, onDone }) {
   const [cropState, setCropState] = useState(null);
@@ -62,6 +62,7 @@ function ImageUploadCropper({ spec, value, onChange, onDone }) {
     }
 
     try {
+      setError('');
       setIsApplying(true);
       const croppedDataUrl = await cropImageDataUrl({
         source: cropState.source,
@@ -72,8 +73,12 @@ function ImageUploadCropper({ spec, value, onChange, onDone }) {
         offsetY: cropState.offsetY,
       });
 
-      // Keep the cropped image on the client as a data URL (no internal API upload).
-      onChange(croppedDataUrl);
+      const uploadedUrl = await uploadImageDataUrl({
+        dataUrl: croppedDataUrl,
+        fileName: `${spec.key || 'image'}-${Date.now()}.png`,
+      });
+
+      onChange(uploadedUrl);
       setCropState(null);
       onDone?.();
     } catch (cropError) {
@@ -108,7 +113,7 @@ function ImageUploadCropper({ spec, value, onChange, onDone }) {
           <div className='mt-3 flex items-center justify-end gap-2'>
             <button
               type='button'
-              className='h-10 px-4 rounded-lg border border-[#C5CED8] text-sm font-semibold text-[#344054] hover:bg-[#F8FAFC] transition-colors'
+              className='h-11 px-5 rounded-lg border border-[#C5CED8] text-sm font-semibold text-[#344054] hover:bg-[#F8FAFC] transition-colors'
               onClick={() => setCropState(null)}
             >
               Cancel
@@ -116,10 +121,10 @@ function ImageUploadCropper({ spec, value, onChange, onDone }) {
             <button
               type='button'
               disabled={isApplying}
-              className='h-10 px-4 rounded-lg bg-[#BE244A] text-white text-sm font-semibold hover:bg-[#A91F42] transition-colors'
+              className='h-11 px-5 rounded-lg bg-[#BE244A] text-white text-sm font-semibold hover:bg-[#A91F42] transition-colors'
               onClick={applyCrop}
             >
-              {isApplying ? 'Saving...' : 'Apply Crop'}
+              {isApplying ? 'Uploading...' : 'Apply Crop'}
             </button>
           </div>
         </div>
@@ -130,7 +135,7 @@ function ImageUploadCropper({ spec, value, onChange, onDone }) {
             Minimum: {spec.minWidth}x{spec.minHeight} | Output: {spec.outputWidth}x{spec.outputHeight}
           </p>
 
-          <label className='mt-4 inline-flex h-11 px-4 rounded-xl border border-[#C5CED8] bg-white text-[#344054] text-sm font-semibold cursor-pointer hover:bg-[#F8FAFC] transition-colors items-center'>
+          <label className='mt-4 inline-flex h-12 px-5 rounded-xl border border-[#C5CED8] bg-white text-[#344054] text-sm font-semibold cursor-pointer hover:bg-[#F8FAFC] transition-colors items-center justify-center'>
             <input
               type='file'
               accept='image/png,image/jpeg,image/webp'
@@ -148,9 +153,9 @@ function ImageUploadCropper({ spec, value, onChange, onDone }) {
               <button
                 type='button'
                 className='mt-2 h-9 px-3 rounded-lg border border-[#C5CED8] text-xs font-semibold text-[#344054] hover:bg-white hover:cursor-pointer transition-colors'
-                onClick={() => downloadDataUrlFile(value, `${spec.key || 'image'}.png`)}
+                onClick={() => window.open(value, '_blank', 'noopener,noreferrer')}
               >
-                Save image
+                Open image URL
               </button>
             </div>
           ) : null}
