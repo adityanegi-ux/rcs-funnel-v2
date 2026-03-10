@@ -88,7 +88,7 @@ function buildCommonPayload({
   const normalizedPhone = normalizeIndianMobileNo(phoneNumber);
 
   return {
-    'user.channel': 'web',
+    'user.channel': 'whatsapp',
     ...(includeSessionId ? { lead_session_id: sessionId } : {}),
     journey_step: journeyStep,
     ...(normalizedEmail ? { 'user.email': normalizedEmail } : {}),
