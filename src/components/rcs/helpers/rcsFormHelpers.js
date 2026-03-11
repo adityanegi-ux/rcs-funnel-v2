@@ -17,6 +17,7 @@ export const UPLOAD_SPECS = [
     outputWidth: 256,
     outputHeight: 256,
     fitMode: 'contain',
+    workflow: 'ENGATI_PUBLIC',
   },
   {
     key: 'headerImageUrl',
@@ -26,6 +27,7 @@ export const UPLOAD_SPECS = [
     outputWidth: 1440,
     outputHeight: 448,
     fitMode: 'cover',
+    workflow: 'ENGATI_PUBLIC',
   },
 ];
 

@@ -175,6 +175,7 @@ export async function uploadImageDataUrl({
   dataUrl,
   fileName = 'image.png',
   fieldName = 'file',
+  workflow,
 }) {
   const normalizedDataUrl = String(dataUrl || '').trim();
   if (!normalizedDataUrl) {
@@ -188,6 +189,7 @@ export async function uploadImageDataUrl({
         dataUrl: normalizedDataUrl,
         fileName: String(fileName || 'image.png'),
         fieldName: String(fieldName || 'file'),
+        workflow: String(workflow || '').trim(),
       },
       {
         headers: {

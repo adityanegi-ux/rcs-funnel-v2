@@ -67,14 +67,12 @@ function getCandidateUploadUrls(primaryUrl) {
   const candidates = [primaryUrl];
 
   if (primaryUrl.includes('://agents.engati.ai/')) {
-    candidates.push(primaryUrl.replace('://agents.engati.ai/', '://api.engati.ai/'));
-    candidates.push(primaryUrl.replace('://agents.engati.ai/', '://devapi.engati.ai/'));
-  } else if (primaryUrl.includes('://api.engati.ai/')) {
-    candidates.push(primaryUrl.replace('://api.engati.ai/', '://agents.engati.ai/'));
-    candidates.push(primaryUrl.replace('://api.engati.ai/', '://devapi.engati.ai/'));
-  } else if (primaryUrl.includes('://devapi.engati.ai/')) {
-    candidates.push(primaryUrl.replace('://devapi.engati.ai/', '://agents.engati.ai/'));
-    candidates.push(primaryUrl.replace('://devapi.engati.ai/', '://api.engati.ai/'));
+    candidates.push(primaryUrl.replace('://agents.engati.ai/', '://dev.engati.ai/'));
+  } else if (primaryUrl.includes('://dev.engati.ai/')) {
+    candidates.push(primaryUrl.replace('://dev.engati.ai/', '://agents.engati.ai/'));
+  } else {
+    candidates.push('https://agents.engati.ai/portal/upload');
+    candidates.push('https://dev.engati.ai/portal/upload');
   }
 
   return Array.from(new Set(candidates));
@@ -108,9 +106,21 @@ function extractUploadedUrl(responseBody) {
   return candidates.find((value) => typeof value === 'string' && value.trim().length > 0) || '';
 }
 
+function toRawPreview(responseBody) {
+  const raw = typeof responseBody?.raw === 'string' ? responseBody.raw : '';
+  if (!raw) {
+    return '';
+  }
+
+  return raw.replace(/\s+/g, ' ').slice(0, 220);
+}
+
 async function callUpload(url, body, authorizationHeader) {
   const formData = new FormData();
   formData.append(body.fieldName, new Blob([body.bytes], { type: body.mimeType }), body.fileName);
+  if (body.workflow) {
+    formData.append('workflow', body.workflow);
+  }
 
   const response = await fetch(url, {
     method: 'POST',
@@ -164,6 +174,7 @@ export default async function handler(req, res) {
   const dataUrl = String(payload.dataUrl || '').trim();
   const fileName = String(payload.fileName || 'image.png').trim();
   const fieldName = String(payload.fieldName || 'file').trim();
+  const workflow = String(payload.workflow || '').trim();
   const authorizationHeader = buildBasicAuthorizationHeader(apiKey);
 
   if (!dataUrl) {
@@ -182,6 +193,7 @@ export default async function handler(req, res) {
     mimeType: parsedImage.mimeType,
     fileName: fileName || 'image.png',
     fieldName: fieldName || 'file',
+    workflow,
   };
 
   try {
@@ -189,6 +201,13 @@ export default async function handler(req, res) {
     let upstream = null;
     let uploadedUrl = '';
     const attempts = [];
+
+    console.log('[engati-upload][api] upload start', {
+      fileName,
+      fieldName,
+      workflow,
+      candidateUrls,
+    });
 
     for (const targetUrl of candidateUrls) {
       const attempt = await callUpload(targetUrl, uploadBody, authorizationHeader);
@@ -202,6 +221,16 @@ export default async function handler(req, res) {
         hasUploadedUrl: Boolean(attemptUploadedUrl),
       });
 
+      console.log('[engati-upload][api] upload attempt response', {
+        url: attempt.url,
+        status: attempt.status,
+        contentType: attempt.contentType,
+        location: attempt.location,
+        hasUploadedUrl: Boolean(attemptUploadedUrl),
+        bodyKeys: Object.keys(attempt.body || {}),
+        rawPreview: toRawPreview(attempt.body),
+      });
+
       if (attemptUploadedUrl) {
         uploadedUrl = attemptUploadedUrl;
         break;
@@ -211,12 +240,22 @@ export default async function handler(req, res) {
     if (uploadedUrl) {
       upstream.body = { ...upstream.body, url: uploadedUrl };
       res.setHeader('x-engati-upload-url', upstream?.url || '');
+      console.log('[engati-upload][api] upload success', {
+        upstreamUrl: upstream?.url || '',
+        status: upstream?.status || 200,
+      });
       return res.status(upstream?.status || 200).json(upstream?.body || { url: uploadedUrl });
     }
 
     // Fail-soft: when upstream upload does not return a URL, return the source blob/data URL.
     res.setHeader('x-engati-upload-url', upstream?.url || '');
     res.setHeader('x-engati-upload-fallback', 'true');
+    console.warn('[engati-upload][api] upload fallback: url missing', {
+      upstreamUrl: upstream?.url || '',
+      attempts,
+      upstreamBodyKeys: Object.keys(upstream?.body || {}),
+      rawPreview: toRawPreview(upstream?.body),
+    });
     return res.status(200).json({
       url: dataUrl,
       isFallbackBlob: true,
@@ -228,6 +267,9 @@ export default async function handler(req, res) {
   } catch (error) {
     // Fail-soft: on upload transport/runtime errors, return the source blob/data URL.
     res.setHeader('x-engati-upload-fallback', 'true');
+    console.error('[engati-upload][api] upload fallback: request failed', {
+      message: error instanceof Error ? error.message : 'Unknown upload error',
+    });
     return res.status(200).json({
       url: dataUrl,
       isFallbackBlob: true,

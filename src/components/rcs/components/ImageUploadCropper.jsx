@@ -77,6 +77,7 @@ function ImageUploadCropper({ spec, value, onChange, onDone }) {
       const uploadedUrl = await uploadImageDataUrl({
         dataUrl: croppedDataUrl,
         fileName: `${spec.key || 'image'}-${Date.now()}.png`,
+        workflow: spec.workflow,
       });
 
       onChange(uploadedUrl);
