@@ -265,27 +265,16 @@ export async function decodeResumeToken(token) {
   return response.data;
 }
 
-export async function capturePage1Journey({ brandName }) {
-  const sessionId = getOrCreateLeadSessionId();
-  const payload = {
-    ...buildCommonPayload({ journeyStep: 'page_2', sessionId }),
-    p1_brand_name: brandName || '',
-    p1_url: getLandingUrl(),
-    p1_timestamp_utc: getUtcIsoTimestamp(),
-  };
-
-  return postEngatiFlow(ENGATI_JOURNEY_START_URL, payload);
-}
-
 export async function capturePage2Journey({ fullName, email, phoneNumber, brandName }) {
+  const sessionId = getOrCreateLeadSessionId();
   const normalizedEmail = String(email || '').trim();
   const normalizedPhone = normalizeIndianMobileNo(phoneNumber);
   const payload = {
     ...buildCommonPayload({
-      journeyStep: 'page_3',
+      journeyStep: 'page_2',
+      sessionId,
       email: normalizedEmail,
       phoneNumber: normalizedPhone,
-      includeSessionId: false,
     }),
     'user.user_name': fullName,
     p1_brand_name: brandName,
@@ -301,6 +290,7 @@ export async function capturePage2Journey({ fullName, email, phoneNumber, brandN
 }
 
 export async function capturePage3Journey({ formValues }) {
+  const sessionId = getOrCreateLeadSessionId();
   const normalizedCallValue = normalizeIndianMobileNo(formValues.callValue || formValues.phoneNumber);
   const normalizedEmailValue = String(formValues.emailValue || formValues.emailAddress || '').trim();
   const normalizedWebsiteValue = normalizeWebsiteUrl(
@@ -308,10 +298,10 @@ export async function capturePage3Journey({ formValues }) {
   );
   const payload = {
     ...buildCommonPayload({
-      journeyStep: 'completed',
+      journeyStep: 'page_3',
+      sessionId,
       email: normalizedEmailValue,
       phoneNumber: normalizedCallValue,
-      includeSessionId: false,
     }),
     p3_timestamp_utc: getUtcIsoTimestamp(),
     business_name: formValues.businessName || formValues.brandName || '',
@@ -398,7 +388,7 @@ export function sendPageDropOffBeacon({
 
     const payload = {
       ...buildCommonPayload({
-        journeyStep: 'drop_off',
+        journeyStep: 'page_2',
         sessionId,
         email: normalizedEmail,
         phoneNumber: normalizedPhone,
@@ -452,7 +442,7 @@ export function sendPageDropOffBeacon({
 
     const payload = {
       ...buildCommonPayload({
-        journeyStep: 'drop_off',
+        journeyStep: 'page_3',
         sessionId,
         email: normalizedEmailValue,
         phoneNumber: normalizedCallValue,

@@ -11,7 +11,6 @@ import CreateRCSUser from './components/CreateRCSUser';
 import debounce from './utils/lodashDebounce';
 import { getSubmissionReadiness } from './components/rcs/helpers/rcsFormHelpers';
 import {
-    capturePage1Journey,
     capturePage2Journey,
     capturePage3Journey,
     journeyEnd,
@@ -329,49 +328,78 @@ function AppV2() {
         });
     };
 
+    const getPage3DraftSnapshot = (incomingValues) => {
+        const storedDraft =
+            page3DraftRef.current && typeof page3DraftRef.current === 'object'
+                ? page3DraftRef.current
+                : {};
+
+        if (!incomingValues || typeof incomingValues !== 'object') {
+            return storedDraft;
+        }
+
+        return {
+            ...storedDraft,
+            ...incomingValues
+        };
+    };
+
+    const capturePage3ProfileOnce = async ({ reason = '', force = false, formValues } = {}) => {
+        if (page3AutoCaptureInFlightRef.current || page3AutoCaptureDoneRef.current) {
+            console.log('[Engati Debug] Page 3 profile capture skipped: already in-flight or completed.', {
+                reason: reason || 'unspecified',
+                inFlight: page3AutoCaptureInFlightRef.current,
+                done: page3AutoCaptureDoneRef.current,
+            });
+            return null;
+        }
+
+        const draftSnapshot = getPage3DraftSnapshot(formValues);
+        const readiness = getSubmissionReadiness(draftSnapshot);
+        if (!force && readiness.percentage < PAGE3_READINESS_MIN_PERCENTAGE) {
+            console.log('[Engati Debug] Page 3 profile capture skipped: readiness below threshold.', {
+                reason: reason || 'unspecified',
+                readiness: readiness.percentage,
+                threshold: PAGE3_READINESS_MIN_PERCENTAGE,
+            });
+            return null;
+        }
+
+        page3AutoCaptureDoneRef.current = true;
+        page3AutoCaptureInFlightRef.current = true;
+        console.log('[Engati Debug] Page 3 profile capture trigger fired.', {
+            reason: reason || 'unspecified',
+            readiness: readiness.percentage,
+            threshold: PAGE3_READINESS_MIN_PERCENTAGE,
+            inactivityMs: PAGE3_AUTO_CAPTURE_DELAY_MS,
+            force,
+        });
+
+        try {
+            const response = await capturePage3Journey({ formValues: draftSnapshot });
+            console.log('[Engati Flow] Page 3 profile captured:', {
+                reason: reason || 'unspecified',
+                response,
+            });
+            return response;
+        } catch (error) {
+            console.error('[Engati Flow] Page 3 profile capture failed:', {
+                reason: reason || 'unspecified',
+                error,
+            });
+            return null;
+        } finally {
+            page3AutoCaptureInFlightRef.current = false;
+        }
+    };
+
     const tryPage3AutoCapture = () => {
         if (page3SubmitClickedRef.current) {
             console.log('[Engati Debug] Auto-capture skipped: final submit already clicked.');
             return;
         }
 
-        if (page3AutoCaptureInFlightRef.current || page3AutoCaptureDoneRef.current) {
-            console.log('[Engati Debug] Auto-capture skipped: already in-flight or completed.', {
-                inFlight: page3AutoCaptureInFlightRef.current,
-                done: page3AutoCaptureDoneRef.current,
-            });
-            return;
-        }
-
-        const draftSnapshot = page3DraftRef.current || {};
-        const readiness = getSubmissionReadiness(draftSnapshot);
-
-        if (readiness.percentage < PAGE3_READINESS_MIN_PERCENTAGE) {
-            console.log('[Engati Debug] Auto-capture skipped: readiness below threshold.', {
-                readiness: readiness.percentage,
-                threshold: PAGE3_READINESS_MIN_PERCENTAGE,
-            });
-            return;
-        }
-
-        page3AutoCaptureDoneRef.current = true;
-        page3AutoCaptureInFlightRef.current = true;
-        console.log('[Engati Debug] Auto-capture trigger fired (inactivity).', {
-            readiness: readiness.percentage,
-            threshold: PAGE3_READINESS_MIN_PERCENTAGE,
-            inactivityMs: PAGE3_AUTO_CAPTURE_DELAY_MS,
-        });
-
-        capturePage3Journey({ formValues: draftSnapshot })
-            .then((response) => {
-                console.log('[Engati Flow] Page 3 auto-captured:', response);
-            })
-            .catch((error) => {
-                console.error('[Engati Flow] Page 3 auto-capture failed:', error);
-            })
-            .finally(() => {
-                page3AutoCaptureInFlightRef.current = false;
-            });
+        void capturePage3ProfileOnce({ reason: 'inactivity_timer' });
     };
 
     const armPage3AutoCaptureTimer = (reason = '') => {
@@ -499,13 +527,7 @@ function AppV2() {
         setIsPreviewActivated(true);
         setRcsTransitionTrigger({ brandKey: normalizedBrandName, nonce: Date.now() });
 
-        capturePage1Journey({ brandName: normalizedBrandName })
-            .then((response) => {
-                console.log('[Engati Flow] Page 1 captured:', response);
-            })
-            .catch((error) => {
-                console.error('[Engati Flow] Page 1 capture failed:', error);
-            });
+        console.log('[Engati Flow] Page 1 API capture skipped (UTM-driven top-of-funnel tracking).');
 
         setPage(2);
     };
@@ -558,7 +580,7 @@ function AppV2() {
         console.log('[Engati Debug] Final submit button handler invoked.', {
             inFlight: page3SubmitInFlightRef.current,
             done: page3SubmitDoneRef.current,
-            autoCaptured: page3AutoCaptureDoneRef.current,
+            profileCaptured: page3AutoCaptureDoneRef.current,
         });
 
         if (page3SubmitInFlightRef.current || page3SubmitDoneRef.current) {
@@ -571,9 +593,18 @@ function AppV2() {
         page3SubmitInFlightRef.current = true;
 
         try {
+            const latestDraftSnapshot = getPage3DraftSnapshot(formValues);
+            page3DraftRef.current = latestDraftSnapshot;
+
+            console.log('[Engati Debug] Final submit requested Page 3 profile capture (send-once).');
+            await capturePage3ProfileOnce({
+                reason: 'final_submit_clicked',
+                force: true,
+                formValues: latestDraftSnapshot,
+            });
+
             const normalizedPhoneForSubmit =
-                formValues?.callValue ||
-                page3DraftRef.current?.callValue ||
+                latestDraftSnapshot?.callValue ||
                 leadDetails?.phone ||
                 '';
             console.log('[Engati Debug] Final submit API call triggered.', {
