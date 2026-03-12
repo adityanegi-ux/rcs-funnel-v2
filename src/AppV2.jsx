@@ -1,6 +1,7 @@
 /* eslint-disable no-unused-vars */
 import React, { useState, useEffect, useRef, useLayoutEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { Analytics } from '@vercel/analytics/react';
 import {
     Search, Mic, Camera, MoreVertical, MessageCircle, ChevronRight,
     Home, User, Settings, ChevronLeft, ShieldCheck, Sparkles, Plus,
@@ -715,6 +716,7 @@ function AppV2() {
                     )}
                 </div>
             </main>
+            <Analytics />
         </div>
     );
 }
