@@ -12,6 +12,7 @@ import CreateRCSUser from './components/CreateRCSUser';
 import debounce from './utils/lodashDebounce';
 import { getSubmissionReadiness } from './components/rcs/helpers/rcsFormHelpers';
 import {
+    capturePage1BrandJourney,
     capturePage2Journey,
     capturePage3Journey,
     journeyEnd,
@@ -20,6 +21,7 @@ import {
     getOrCreateLeadSessionId,
     setLeadSessionId
 } from './services/engatiJourneyApi';
+import { trackEvent } from './services/analytics';
 
 // --- LIVE DATA ENGINE ---
 
@@ -28,6 +30,7 @@ const PAGE2_FORM_STORAGE_KEY = 'engati_rcs_page2_form_draft';
 const RESUME_TOKEN_QUERY_KEYS = ['resume_token', 'resume'];
 const PAGE3_AUTO_CAPTURE_DELAY_MS = 60000;
 const PAGE3_READINESS_MIN_PERCENTAGE = 43;
+const APP_ANALYTICS_SOURCE = 'engati_rcs_landing';
 
 const INITIAL_BRAND_DATA = {
     logo: null,
@@ -180,6 +183,35 @@ function buildResumeUrl(token) {
     }
 }
 
+function trackAppEvent(eventName, params = {}) {
+    try {
+        trackEvent(eventName, {
+            source: APP_ANALYTICS_SOURCE,
+            ...params
+        });
+    } catch {
+        // Analytics must stay fail-safe and never block the funnel.
+    }
+}
+
+function getPage3AnalyticsParams(formValues, fallbackBrandName = '') {
+    const source = formValues && typeof formValues === 'object' ? formValues : {};
+    const brandName = String(source.businessName || fallbackBrandName || '').trim();
+
+    return {
+        brand_name: brandName,
+        has_brand_name: Boolean(brandName),
+        has_short_description: Boolean(String(source.shortDescription || '').trim()),
+        has_logo_url: Boolean(String(source.logoUrl || '').trim()),
+        has_header_image_url: Boolean(String(source.headerImageUrl || '').trim()),
+        has_phone: Boolean(String(source.callValue || '').trim()),
+        has_email: Boolean(String(source.emailValue || '').trim()),
+        has_website: Boolean(String(source.websiteValue || '').trim()),
+        has_privacy_policy_url: Boolean(String(source.privacyPolicyUrl || '').trim()),
+        has_terms_of_services_url: Boolean(String(source.termsOfServicesUrl || '').trim()),
+    };
+}
+
 const useBrandData = (companyName, shouldFetchPreview) => {
     const [data, setData] = useState(INITIAL_BRAND_DATA);
     const normalizedCompanyName = companyName.trim();
@@ -313,8 +345,54 @@ function AppV2() {
     const page3SubmitClickedRef = useRef(false);
     const page3SubmitInFlightRef = useRef(false);
     const page3SubmitDoneRef = useRef(false);
+    const page1BrandDetailsTrackedRef = useRef('');
+    const page3InactivitySubmitTrackedRef = useRef(false);
+    const page3FinalSubmitTrackedRef = useRef(false);
 
     const brandData = useBrandData(companyName, isPreviewActivated);
+
+    useEffect(() => {
+        if (!companyName.trim()) {
+            page1BrandDetailsTrackedRef.current = '';
+        }
+    }, [companyName]);
+
+    useEffect(() => {
+        const normalizedCompanyName = companyName.trim();
+        const brandTrackingKey = normalizedCompanyName.toLowerCase();
+
+        if (
+            !isPreviewActivated ||
+            !normalizedCompanyName ||
+            brandData.isLoading ||
+            !brandData.isLoaded ||
+            page1BrandDetailsTrackedRef.current === brandTrackingKey
+        ) {
+            return;
+        }
+
+        page1BrandDetailsTrackedRef.current = brandTrackingKey;
+        trackAppEvent('engati_page_1_brand_details_captured', {
+            page: 'page_1',
+            lead_session_id: getOrCreateLeadSessionId(),
+            brand_name: normalizedCompanyName,
+            industry: String(brandData.industry || 'General'),
+            has_logo: Boolean(brandData.logo),
+            has_description: Boolean(brandData.description),
+            sitelink_count: Array.isArray(brandData.sitelinks) ? brandData.sitelinks.length : 0,
+            has_offer: Boolean(String(brandData.offer || '').trim()),
+        });
+    }, [
+        brandData.description,
+        brandData.industry,
+        brandData.isLoaded,
+        brandData.isLoading,
+        brandData.logo,
+        brandData.offer,
+        brandData.sitelinks,
+        companyName,
+        isPreviewActivated,
+    ]);
 
     const clearPage3AutoCaptureTimer = (reason = '') => {
         if (!page3AutoCaptureTimeoutRef.current) {
@@ -382,6 +460,18 @@ function AppV2() {
                 reason: reason || 'unspecified',
                 response,
             });
+
+            if (reason === 'inactivity_timer' && !page3InactivitySubmitTrackedRef.current) {
+                page3InactivitySubmitTrackedRef.current = true;
+                trackAppEvent('engati_form_submitted_due_to_inactivity', {
+                    page: 'page_3',
+                    lead_session_id: getOrCreateLeadSessionId(),
+                    submission_reason: 'inactivity_timer',
+                    readiness_percentage: readiness.percentage,
+                    ...getPage3AnalyticsParams(draftSnapshot, companyName),
+                });
+            }
+
             return response;
         } catch (error) {
             console.error('[Engati Flow] Page 3 profile capture failed:', {
@@ -439,6 +529,8 @@ function AppV2() {
         page3SubmitClickedRef.current = false;
         page3SubmitInFlightRef.current = false;
         page3SubmitDoneRef.current = false;
+        page3InactivitySubmitTrackedRef.current = false;
+        page3FinalSubmitTrackedRef.current = false;
     };
 
     const handlePage3DraftChange = (nextFormValues) => {
@@ -528,7 +620,22 @@ function AppV2() {
         setIsPreviewActivated(true);
         setRcsTransitionTrigger({ brandKey: normalizedBrandName, nonce: Date.now() });
 
-        console.log('[Engati Flow] Page 1 API capture skipped (UTM-driven top-of-funnel tracking).');
+        trackAppEvent('engati_page_1_brand_submitted', {
+            page: 'page_1',
+            lead_session_id: getOrCreateLeadSessionId(),
+            brand_name: normalizedBrandName,
+            brand_name_length: normalizedBrandName.length,
+        });
+
+        capturePage1BrandJourney({
+            brandName: normalizedBrandName
+        })
+            .then((response) => {
+                console.log('[Engati Flow] Page 1 brand capture submitted:', response);
+            })
+            .catch((error) => {
+                console.error('[Engati Flow] Page 1 brand capture failed:', error);
+            });
 
         setPage(2);
     };
@@ -613,6 +720,17 @@ function AppV2() {
             });
             const response = await journeyEnd({ phoneNumber: normalizedPhoneForSubmit });
             page3SubmitDoneRef.current = true;
+
+            if (!page3FinalSubmitTrackedRef.current) {
+                page3FinalSubmitTrackedRef.current = true;
+                trackAppEvent('engati_final_form_submitted', {
+                    page: 'page_3',
+                    lead_session_id: getOrCreateLeadSessionId(),
+                    submission_reason: 'final_submit_clicked',
+                    ...getPage3AnalyticsParams(latestDraftSnapshot, companyName),
+                });
+            }
+
             console.log('[Engati Flow] Page 3 journey submit captured:', response);
             return response;
         } finally {

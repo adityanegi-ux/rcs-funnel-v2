@@ -2,6 +2,7 @@ import axios from 'axios';
 import { trackEvent } from './analytics';
 
 const ENGATI_PROXY_BASE_URL = '/api/engati';
+const ENGATI_BRANDNAME_CAPTURE_URL = `${ENGATI_PROXY_BASE_URL}/brandname-capture`;
 const ENGATI_JOURNEY_START_URL = `${ENGATI_PROXY_BASE_URL}/journey-start`;
 const ENGATI_IDENTITY_CAPTURE_URL = `${ENGATI_PROXY_BASE_URL}/identity-capture`;
 const ENGATI_RCS_PROFILE_SUBMIT_URL = `${ENGATI_PROXY_BASE_URL}/rcs-profile-submit`;
@@ -62,6 +63,12 @@ function generateNumericSessionId() {
   return `${epochPart}${randomPart}`;
 }
 
+function generatePage1DummyPhoneNumber() {
+  const fixedPrefix = '111';
+  const randomPart = String(Math.floor(Math.random() * 10000000)).padStart(7, '0');
+  return `${fixedPrefix}${randomPart}`;
+}
+
 export function getOrCreateLeadSessionId() {
   if (typeof window === 'undefined') {
     return generateNumericSessionId();
@@ -95,13 +102,14 @@ function buildCommonPayload({
   sessionId,
   email,
   phoneNumber,
+  channel = 'whatsapp',
   includeSessionId = true,
 }) {
   const normalizedEmail = String(email || '').trim();
   const normalizedPhone = normalizeIndianMobileNo(phoneNumber);
 
   return {
-    'user.channel': 'whatsapp',
+    'user.channel': String(channel || 'whatsapp').trim() || 'whatsapp',
     ...(includeSessionId ? { lead_session_id: sessionId } : {}),
     journey_step: journeyStep,
     ...(normalizedEmail ? { 'user.email': normalizedEmail } : {}),
@@ -373,6 +381,51 @@ export async function capturePage2Journey({ fullName, email, phoneNumber, brandN
     trackJourneyEvent('engati_page_2_capture', {
       status: 'failed',
       lead_session_id: sessionId,
+      error_message: error?.message || 'unknown_error',
+    });
+    throw error;
+  }
+}
+
+export async function capturePage1BrandJourney({ brandName }) {
+  const sessionId = getOrCreateLeadSessionId();
+  const normalizedBrandName = String(brandName || '').trim();
+  const dummyPhoneNumber = generatePage1DummyPhoneNumber();
+  const normalizedDummyPhone = normalizeIndianMobileNo(dummyPhoneNumber);
+  const payload = {
+    ...buildCommonPayload({
+      journeyStep: 'page_1',
+      sessionId,
+      phoneNumber: dummyPhoneNumber,
+      channel: 'web',
+    }),
+    p1_brand_name: normalizedBrandName,
+    call_value: normalizedDummyPhone,
+    p1_mobile_e164_no_plus: normalizedDummyPhone,
+    p1_timestamp_utc: getUtcIsoTimestamp(),
+    p1_url: getLandingUrl(),
+  };
+
+  trackJourneyEvent('engati_page_1_brand_capture', {
+    status: 'attempt',
+    lead_session_id: sessionId,
+    has_brand_name: Boolean(normalizedBrandName),
+    channel: 'web',
+  });
+
+  try {
+    const response = await postEngatiFlow(ENGATI_BRANDNAME_CAPTURE_URL, payload);
+    trackJourneyEvent('engati_page_1_brand_capture', {
+      status: 'success',
+      lead_session_id: sessionId,
+      channel: 'web',
+    });
+    return response;
+  } catch (error) {
+    trackJourneyEvent('engati_page_1_brand_capture', {
+      status: 'failed',
+      lead_session_id: sessionId,
+      channel: 'web',
       error_message: error?.message || 'unknown_error',
     });
     throw error;

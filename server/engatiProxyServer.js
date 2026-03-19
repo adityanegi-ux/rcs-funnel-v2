@@ -5,6 +5,7 @@ import { ENGATI_FLOW_ENDPOINTS, ENGATI_UPLOAD_ENDPOINT } from './engatiFlowEndpo
 import { createResumeToken, decodeResumeToken, toResumeTokenError } from './resumeToken.js';
 
 const ROUTE_TO_FLOW = {
+  '/api/engati/brandname-capture': ENGATI_FLOW_ENDPOINTS.brandNameCapture,
   '/api/engati/journey-start': ENGATI_FLOW_ENDPOINTS.journeyStart,
   '/api/engati/identity-capture': ENGATI_FLOW_ENDPOINTS.identityCapture,
   '/api/engati/rcs-profile-submit': ENGATI_FLOW_ENDPOINTS.rcsProfileSubmit,

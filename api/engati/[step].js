@@ -1,6 +1,7 @@
 import { ENGATI_FLOW_ENDPOINTS } from '../../server/engatiFlowEndpoints.js';
 
 const STEP_TO_FLOW = {
+  'brandname-capture': ENGATI_FLOW_ENDPOINTS.brandNameCapture,
   'journey-start': ENGATI_FLOW_ENDPOINTS.journeyStart,
   'identity-capture': ENGATI_FLOW_ENDPOINTS.identityCapture,
   'rcs-profile-submit': ENGATI_FLOW_ENDPOINTS.rcsProfileSubmit,

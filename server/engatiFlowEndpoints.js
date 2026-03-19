@@ -1,4 +1,6 @@
 export const ENGATI_FLOW_ENDPOINTS = {
+  brandNameCapture:
+    'https://api.engati.ai/bot-api/v2.0/customer/28459/bot/8419bd588bec4048/flow/7F28AD9C043C4748B730D5F2A0B5FA2C',
   identityCapture:
     'https://api.engati.ai/bot-api/v2.0/customer/28459/bot/8419bd588bec4048/flow/EBAE1F6090D54CC3B7689F02C04A004F',
   rcsProfileSubmit:
