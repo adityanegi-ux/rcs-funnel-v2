@@ -785,10 +785,10 @@ function AppV2() {
             </header>
 
             {/* Main Content - Centered */}
-            <main className="flex-1 pt-24 pb-10 relative z-10 w-full">
+            <main className="flex-1 pt-40 relative z-10 w-full">
                 <div className="max-w-7xl mx-auto px-8 w-full">
                     {page !== 3 ? (
-                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-start">
+                        <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1.12fr)_minmax(0,0.88fr)] gap-12 items-start">
                             {/* LEFT: Wizard Form */}
                             <div className="z-20">
                                 <AnimatePresence mode="wait">
@@ -812,12 +812,15 @@ function AppV2() {
                             </div>
 
                             {/* RIGHT: Phone Studio */}
-                            <div className="flex justify-center lg:block origin-top lg:scale-[0.78] xl:scale-[0.86]">
-                                <PhoneStudio
-                                    companyName={companyName}
-                                    brandData={brandData}
-                                    rcsTransitionTrigger={rcsTransitionTrigger}
-                                />
+                            <div className="flex flex-col items-center">
+                                <div className="flex justify-center lg:block origin-top lg:scale-[0.78] xl:scale-[0.86] lg:-mb-28 xl:-mb-20">
+                                    <PhoneStudio
+                                        companyName={companyName}
+                                        brandData={brandData}
+                                        rcsTransitionTrigger={rcsTransitionTrigger}
+                                    />
+                                </div>
+                                <p className="text-sm font-medium text-[#344054] text-center">What your customers will see</p>
                             </div>
                         </div>
                     ) : (
@@ -834,6 +837,12 @@ function AppV2() {
                     )}
                 </div>
             </main>
+            {page === 1 ? (
+                <p className="fixed bottom-6 left-8 z-20 hidden text-xs text-[#666666] lg:block">
+                    By continuing, you agree to Engati’s Terms of Use.
+                    <a href="https://www.engati.ai/termsofuse" className="text-[#BD2949] hover:underline ml-1 font-medium" target="_blank" rel="noreferrer">View terms</a>
+                </p>
+            ) : null}
             <Analytics />
         </div>
     );
@@ -1190,21 +1199,21 @@ function Page1({ companyName, setCompanyName, onNext }) {
     const hasProfanity = hasBlockedBrandTerm(companyName);
 
     return (
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} transition={{ duration: 0.4 }} className="space-y-8 max-w-lg">
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -20 }} transition={{ duration: 0.4 }} className="space-y-8 max-w-lg lg:max-w-[40rem]">
             <div className="h-6"></div>
-            <div className="space-y-6">
-                <h1 className="text-5xl font-bold text-[#000000] leading-[1.15] tracking-tight">
-                    Turn Google Brand Searches into Qualified Leads
-                    <span className="inline-block align-middle ml-3 px-2.5 py-0.5 rounded-full bg-blue-100 text-blue-700 text-xs font-bold tracking-wide border border-blue-200">Limited Access</span>
+            <div className="space-y-3">
+                <h1 className="text-3xl md:text-[2.5rem] xl:text-[3rem] font-bold text-[#000000] leading-[1.06] tracking-[-0.04em]">
+                    <span className="block whitespace-nowrap">See How Your Brand Can Capture</span>
+                    <span className="block whitespace-nowrap">Leads Directly from Google Search</span>
                 </h1>
-                <p className="text-lg text-[#666666] leading-relaxed">Turn brand search clicks into leads on chat - no extra ad or setup spend</p>
+                <p className="text-lg text-[#666666] leading-relaxed">Customers can start a conversation with your business the moment they search your brand.</p>
             </div>
             <div className="space-y-4 pt-2">
                 <label className="block">
-                    <span className="text-sm font-semibold text-[#000000] mb-2 block">Brand Name</span>
+                    <span className="text-sm font-semibold text-[#000000] mb-2 block">Enter Your Brand Name</span>
                     <input
                         type="text"
-                        placeholder="Enter your brand name"
+                        placeholder="e.g. Aster Hospitals"
                         className="w-full p-4 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#BD2949]/20 focus:border-[#BD2949] transition-all shadow-sm text-base text-[#000000] placeholder:text-[#999999] focus:outline-none"
                         value={companyName}
                         onChange={(e) => setCompanyName(e.target.value)}
@@ -1217,12 +1226,13 @@ function Page1({ companyName, setCompanyName, onNext }) {
                 ) : null}
                 <div>
                     <button onClick={onNext} disabled={!companyName.trim() || hasProfanity} className="w-full py-4 bg-[#BD2949] text-white rounded-lg font-semibold text-base hover:bg-[#A02340] disabled:bg-[#F1F3F4] disabled:text-[#999999] disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2 shadow-md hover:shadow-lg hover:-translate-y-0.5 active:translate-y-0 disabled:hover:translate-y-0 disabled:shadow-none">
-                       Enable it for free <ArrowRight className="w-5 h-5" />
+                       Try this for my brand!
                     </button>
-                    <p className="text-xs text-gray-400 text-center mt-3">Instant preview. No signup.</p>
+                    <p className="text-base font-semibold text-[#BD2949] text-center mt-3">Continue to unlock 30 days of free RCS!</p>
+                    <p className="text-xs text-gray-400 text-center mt-2">Takes 10 seconds • No signup</p>
                 </div>
             </div>
-            <p className="text-xs text-[#666666]">By continuing, you agree to Engati’s Terms of Use. <a href="https://www.engati.ai/termsofuse" className="text-[#BD2949] hover:underline ml-1 font-medium" target="_blank" rel="noreferrer">View terms</a></p>
+            <p className="text-xs text-[#666666] lg:hidden">By continuing, you agree to Engati’s Terms of Use. <a href="https://www.engati.ai/termsofuse" className="text-[#BD2949] hover:underline ml-1 font-medium" target="_blank" rel="noreferrer">View terms</a></p>
         </motion.div>
     );
 }
