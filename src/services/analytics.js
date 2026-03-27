@@ -231,6 +231,42 @@ export function identifyAnalyticsUser(distinctId, properties = {}) {
   return true;
 }
 
+export function registerSessionAnalyticsProperties(properties = {}) {
+  if (typeof window === 'undefined' || !isConfiguredPosthogKey(POSTHOG_KEY)) {
+    return false;
+  }
+
+  const normalizedProperties = sanitizeEventParams(properties);
+  if (!Object.keys(normalizedProperties).length) {
+    return false;
+  }
+
+  initPosthog();
+  posthog.register_for_session(normalizedProperties);
+  return true;
+}
+
+export function unregisterSessionAnalyticsProperties(propertyNames = []) {
+  if (typeof window === 'undefined' || !isConfiguredPosthogKey(POSTHOG_KEY)) {
+    return false;
+  }
+
+  const names = Array.isArray(propertyNames) ? propertyNames : [propertyNames];
+  const normalizedNames = names
+    .map((propertyName) => String(propertyName || '').trim())
+    .filter(Boolean);
+
+  if (!normalizedNames.length) {
+    return false;
+  }
+
+  initPosthog();
+  normalizedNames.forEach((propertyName) => {
+    posthog.unregister_for_session(propertyName);
+  });
+  return true;
+}
+
 export function resetAnalyticsUser() {
   if (typeof window === 'undefined' || !isConfiguredPosthogKey(POSTHOG_KEY)) {
     return false;

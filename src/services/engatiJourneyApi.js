@@ -406,28 +406,10 @@ export async function capturePage1BrandJourney({ brandName }) {
     p1_url: getLandingUrl(),
   };
 
-  trackJourneyEvent('engati_page_1_brand_capture', {
-    status: 'attempt',
-    lead_session_id: sessionId,
-    has_brand_name: Boolean(normalizedBrandName),
-    channel: 'web',
-  });
-
   try {
     const response = await postEngatiFlow(ENGATI_BRANDNAME_CAPTURE_URL, payload);
-    trackJourneyEvent('engati_page_1_brand_capture', {
-      status: 'success',
-      lead_session_id: sessionId,
-      channel: 'web',
-    });
     return response;
   } catch (error) {
-    trackJourneyEvent('engati_page_1_brand_capture', {
-      status: 'failed',
-      lead_session_id: sessionId,
-      channel: 'web',
-      error_message: error?.message || 'unknown_error',
-    });
     throw error;
   }
 }

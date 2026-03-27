@@ -21,7 +21,12 @@ import {
     getOrCreateLeadSessionId,
     setLeadSessionId
 } from './services/engatiJourneyApi';
-import { identifyAnalyticsUser, trackEvent } from './services/analytics';
+import {
+    identifyAnalyticsUser,
+    registerSessionAnalyticsProperties,
+    trackEvent,
+    unregisterSessionAnalyticsProperties
+} from './services/analytics';
 
 // --- LIVE DATA ENGINE ---
 
@@ -351,54 +356,23 @@ function AppV2() {
     const page3SubmitClickedRef = useRef(false);
     const page3SubmitInFlightRef = useRef(false);
     const page3SubmitDoneRef = useRef(false);
-    const page1BrandDetailsTrackedRef = useRef('');
     const page3InactivitySubmitTrackedRef = useRef(false);
     const page3FinalSubmitTrackedRef = useRef(false);
 
     const brandData = useBrandData(companyName, isPreviewActivated);
 
     useEffect(() => {
-        if (!companyName.trim()) {
-            page1BrandDetailsTrackedRef.current = '';
-        }
-    }, [companyName]);
-
-    useEffect(() => {
         const normalizedCompanyName = companyName.trim();
-        const brandTrackingKey = normalizedCompanyName.toLowerCase();
 
-        if (
-            !isPreviewActivated ||
-            !normalizedCompanyName ||
-            brandData.isLoading ||
-            !brandData.isLoaded ||
-            page1BrandDetailsTrackedRef.current === brandTrackingKey
-        ) {
+        if (!normalizedCompanyName || hasBlockedBrandTerm(normalizedCompanyName)) {
+            unregisterSessionAnalyticsProperties('brand_name');
             return;
         }
 
-        page1BrandDetailsTrackedRef.current = brandTrackingKey;
-        trackAppEvent('engati_page_1_brand_details_captured', {
-            page: 'page_1',
-            lead_session_id: getOrCreateLeadSessionId(),
+        registerSessionAnalyticsProperties({
             brand_name: normalizedCompanyName,
-            industry: String(brandData.industry || 'General'),
-            has_logo: Boolean(brandData.logo),
-            has_description: Boolean(brandData.description),
-            sitelink_count: Array.isArray(brandData.sitelinks) ? brandData.sitelinks.length : 0,
-            has_offer: Boolean(String(brandData.offer || '').trim()),
         });
-    }, [
-        brandData.description,
-        brandData.industry,
-        brandData.isLoaded,
-        brandData.isLoading,
-        brandData.logo,
-        brandData.offer,
-        brandData.sitelinks,
-        companyName,
-        isPreviewActivated,
-    ]);
+    }, [companyName]);
 
     const clearPage3AutoCaptureTimer = (reason = '') => {
         if (!page3AutoCaptureTimeoutRef.current) {
@@ -626,13 +600,6 @@ function AppV2() {
         setIsPreviewActivated(true);
         setRcsTransitionTrigger({ brandKey: normalizedBrandName, nonce: Date.now() });
 
-        trackAppEvent('engati_page_1_brand_submitted', {
-            page: 'page_1',
-            lead_session_id: getOrCreateLeadSessionId(),
-            brand_name: normalizedBrandName,
-            brand_name_length: normalizedBrandName.length,
-        });
-
         capturePage1BrandJourney({
             brandName: normalizedBrandName
         })
@@ -787,6 +754,7 @@ function AppV2() {
                         className="flex items-center cursor-pointer"
                         onClick={() => {
                             resetPage3Tracking();
+                            unregisterSessionAnalyticsProperties('brand_name');
                             setPage(1);
                             setCompanyName('');
                             setIsPreviewActivated(false);
