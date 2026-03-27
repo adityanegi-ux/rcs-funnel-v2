@@ -2,8 +2,16 @@ import posthog from 'posthog-js';
 
 export const GTM_ID = import.meta.env.VITE_GTM_ID || 'GTM-PNH9HK5';
 export const GA_MEASUREMENT_ID = import.meta.env.VITE_GA_MEASUREMENT_ID || 'G-VXQK579619';
-export const POSTHOG_KEY = 'phc_y1HY8XWVC4swiO0fsn7lV7EBl9AqjCdGyCT1vnIonY2';
-export const POSTHOG_HOST = 'https://us.i.posthog.com';
+export const POSTHOG_KEY =
+  import.meta.env.VITE_POSTHOG_KEY ||
+  import.meta.env.VITE_POSTHOG_TOKEN ||
+  import.meta.env.VITE_PUBLIC_POSTHOG_KEY ||
+  import.meta.env.VITE_PUBLIC_POSTHOG_TOKEN ||
+  '';
+export const POSTHOG_HOST =
+  import.meta.env.VITE_POSTHOG_HOST ||
+  import.meta.env.VITE_PUBLIC_POSTHOG_HOST ||
+  'https://us.i.posthog.com';
 export const BRAND_NAME_INPUT_ID = 'brand-name-input';
 
 const DEFAULT_DATALAYER_NAME = 'dataLayer';
