@@ -1,9 +1,14 @@
-export const GTM_ID = 'GTM-PNH9HK5';
+import posthog from 'posthog-js';
+
+export const GTM_ID = import.meta.env.VITE_GTM_ID || 'GTM-PNH9HK5';
 export const GA_MEASUREMENT_ID = import.meta.env.VITE_GA_MEASUREMENT_ID || 'G-VXQK579619';
+export const POSTHOG_KEY = 'phc_y1HY8XWVC4swiO0fsn7lV7EBl9AqjCdGyCT1vnIonY2';
+export const POSTHOG_HOST = 'https://us.i.posthog.com';
 
 const DEFAULT_DATALAYER_NAME = 'dataLayer';
 const GTM_SCRIPT_SOURCE = 'https://www.googletagmanager.com/gtm.js';
 const GTAG_SCRIPT_SOURCE = 'https://www.googletagmanager.com/gtag/js';
+const POSTHOG_DEFAULTS_DATE = '2026-01-30';
 
 function isConfiguredContainerId(containerId) {
   const normalizedId = String(containerId || '').trim();
@@ -31,6 +36,10 @@ function appendGtagScript(measurementId) {
   scriptTag.src = `${GTAG_SCRIPT_SOURCE}?id=${encodeURIComponent(measurementId)}`;
   scriptTag.dataset.engatiAnalytics = 'ga4';
   document.head.appendChild(scriptTag);
+}
+
+function isConfiguredPosthogKey(projectApiKey) {
+  return Boolean(String(projectApiKey || '').trim());
 }
 
 function ensureDataLayer() {
@@ -131,6 +140,30 @@ function initGa4() {
   return true;
 }
 
+function initPosthog() {
+  if (typeof window === 'undefined' || typeof document === 'undefined') {
+    return false;
+  }
+
+  if (!isConfiguredPosthogKey(POSTHOG_KEY)) {
+    return false;
+  }
+
+  if (window.__engatiPosthogInitialized) {
+    return true;
+  }
+
+  posthog.init(POSTHOG_KEY, {
+    api_host: POSTHOG_HOST,
+    defaults: POSTHOG_DEFAULTS_DATE,
+    capture_pageview: true,
+    autocapture: true,
+  });
+
+  window.__engatiPosthogInitialized = true;
+  return true;
+}
+
 export function enableAnalytics() {
   if (typeof window === 'undefined' || typeof document === 'undefined') {
     return false;
@@ -138,7 +171,8 @@ export function enableAnalytics() {
 
   const gtmInitialized = initGtm();
   const gaInitialized = initGa4();
-  return gtmInitialized || gaInitialized;
+  const posthogInitialized = initPosthog();
+  return gtmInitialized || gaInitialized || posthogInitialized;
 }
 
 export function trackEvent(eventName, params = {}) {
@@ -151,23 +185,58 @@ export function trackEvent(eventName, params = {}) {
     return false;
   }
 
-  const hasAnyAnalyticsId =
-    isConfiguredContainerId(GTM_ID) || isConfiguredMeasurementId(GA_MEASUREMENT_ID);
+  const hasGtm = isConfiguredContainerId(GTM_ID);
+  const hasGa = isConfiguredMeasurementId(GA_MEASUREMENT_ID);
+  const hasPosthog = isConfiguredPosthogKey(POSTHOG_KEY);
+  const hasAnyAnalyticsId = hasGtm || hasGa || hasPosthog;
   if (!hasAnyAnalyticsId) {
     return false;
   }
 
   const normalizedParams = sanitizeEventParams(params);
-  ensureDataLayer();
 
-  window[DEFAULT_DATALAYER_NAME].push({
-    event: normalizedEventName,
-    ...normalizedParams,
-  });
+  if (hasGtm || hasGa) {
+    ensureDataLayer();
 
-  if (typeof window.gtag === 'function') {
-    window.gtag('event', normalizedEventName, normalizedParams);
+    window[DEFAULT_DATALAYER_NAME].push({
+      event: normalizedEventName,
+      ...normalizedParams,
+    });
+
+    if (typeof window.gtag === 'function') {
+      window.gtag('event', normalizedEventName, normalizedParams);
+    }
   }
 
+  if (hasPosthog) {
+    initPosthog();
+    posthog.capture(normalizedEventName, normalizedParams);
+  }
+
+  return true;
+}
+
+export function identifyAnalyticsUser(distinctId, properties = {}) {
+  if (typeof window === 'undefined') {
+    return false;
+  }
+
+  const normalizedDistinctId = String(distinctId || '').trim();
+  if (!normalizedDistinctId || !isConfiguredPosthogKey(POSTHOG_KEY)) {
+    return false;
+  }
+
+  initPosthog();
+  posthog.identify(normalizedDistinctId, sanitizeEventParams(properties));
+  return true;
+}
+
+export function resetAnalyticsUser() {
+  if (typeof window === 'undefined' || !isConfiguredPosthogKey(POSTHOG_KEY)) {
+    return false;
+  }
+
+  initPosthog();
+  posthog.reset();
   return true;
 }

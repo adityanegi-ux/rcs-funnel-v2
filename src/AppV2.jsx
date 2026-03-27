@@ -21,7 +21,7 @@ import {
     getOrCreateLeadSessionId,
     setLeadSessionId
 } from './services/engatiJourneyApi';
-import { trackEvent } from './services/analytics';
+import { identifyAnalyticsUser, trackEvent } from './services/analytics';
 
 // --- LIVE DATA ENGINE ---
 
@@ -192,6 +192,12 @@ function trackAppEvent(eventName, params = {}) {
     } catch {
         // Analytics must stay fail-safe and never block the funnel.
     }
+}
+
+function getEmailDomain(emailValue) {
+    const normalizedEmail = String(emailValue || '').trim().toLowerCase();
+    const [, domain = ''] = normalizedEmail.split('@');
+    return domain;
 }
 
 function getPage3AnalyticsParams(formValues, fallbackBrandName = '') {
@@ -650,6 +656,16 @@ function AppV2() {
         };
 
         console.log('[RCS Demo] Section 1 + Section 2 payload:', stepOneTwoPayload);
+
+        identifyAnalyticsUser(`lead_${leadSessionId}`, {
+            source: APP_ANALYTICS_SOURCE,
+            lead_session_id: leadSessionId,
+            brand_name: normalizedBrandName,
+            funnel_stage: 'page_2_completed',
+            has_email: Boolean(normalizedLeadDetails.email),
+            has_phone: Boolean(normalizedLeadDetails.phone),
+            email_domain: getEmailDomain(normalizedLeadDetails.email),
+        });
 
         capturePage2Journey({
             fullName: normalizedLeadDetails.fullName,
