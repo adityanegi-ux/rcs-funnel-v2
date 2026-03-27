@@ -22,6 +22,7 @@ import {
     setLeadSessionId
 } from './services/engatiJourneyApi';
 import {
+    BRAND_NAME_INPUT_ID,
     identifyAnalyticsUser,
     registerSessionAnalyticsProperties,
     trackEvent,
@@ -1196,6 +1197,7 @@ function Page1({ companyName, setCompanyName, onNext }) {
                 <label className="block">
                     <span className="text-sm font-semibold text-[#000000] mb-2 block">Enter Your Brand Name</span>
                     <input
+                        id={BRAND_NAME_INPUT_ID}
                         type="text"
                         placeholder="e.g. Aster Hospitals"
                         className="w-full p-4 bg-white border border-gray-200 rounded-xl focus:ring-2 focus:ring-[#BD2949]/20 focus:border-[#BD2949] transition-all shadow-sm text-base text-[#000000] placeholder:text-[#999999] focus:outline-none"

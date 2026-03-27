@@ -4,6 +4,7 @@ export const GTM_ID = import.meta.env.VITE_GTM_ID || 'GTM-PNH9HK5';
 export const GA_MEASUREMENT_ID = import.meta.env.VITE_GA_MEASUREMENT_ID || 'G-VXQK579619';
 export const POSTHOG_KEY = 'phc_y1HY8XWVC4swiO0fsn7lV7EBl9AqjCdGyCT1vnIonY2';
 export const POSTHOG_HOST = 'https://us.i.posthog.com';
+export const BRAND_NAME_INPUT_ID = 'brand-name-input';
 
 const DEFAULT_DATALAYER_NAME = 'dataLayer';
 const GTM_SCRIPT_SOURCE = 'https://www.googletagmanager.com/gtm.js';
@@ -40,6 +41,14 @@ function appendGtagScript(measurementId) {
 
 function isConfiguredPosthogKey(projectApiKey) {
   return Boolean(String(projectApiKey || '').trim());
+}
+
+function maskSessionRecordingInput(text, element) {
+  if (element?.id === BRAND_NAME_INPUT_ID) {
+    return String(text || '');
+  }
+
+  return '*'.repeat(String(text || '').length);
 }
 
 function ensureDataLayer() {
@@ -158,6 +167,13 @@ function initPosthog() {
     defaults: POSTHOG_DEFAULTS_DATE,
     capture_pageview: true,
     autocapture: true,
+    session_recording: {
+      maskAllInputs: true,
+      maskInputFn: maskSessionRecordingInput,
+      captureCanvas: {
+        recordCanvas: false,
+      },
+    },
   });
 
   window.__engatiPosthogInitialized = true;
