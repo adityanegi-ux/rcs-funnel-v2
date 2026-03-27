@@ -14,6 +14,7 @@
     "@tailwindcss/postcss": "^4.1.18",
     "@vercel/analytics": "^2.0.0",
     "axios": "^1.13.5",
+    "posthog-js": "^1.364.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "react-hook-form": "^7.71.2"
